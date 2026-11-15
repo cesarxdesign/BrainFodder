@@ -38,3 +38,5 @@
 - Live test on Vercel (brainfodder.vercel.app), all 50 feeds through the deployed API:
   - NASASpaceflight and Finextra answered from the Mac but refuse Vercel's servers (403). Both now come through a Google News search for their own site, the same way as ATP and WTA
   - Simon Willison, Maggie Appleton, Dan Luu and Craig Mod failed with "Entity expansion limit exceeded". The XML parser counts every &lt; and &amp; in a feed and stopped at 1000; long feeds with escaped HTML have more. The cap is now 2 million, with the guards against booby-trapped feeds (DOCTYPE entities) kept
+- Live check in Chrome: all 50 feeds load with unread counts, none flagged; j/k move through items; no console errors on load or in use. Shorts player: 18 new Shorts queued, the next one started by itself when one ended, j skipped, Esc closed. Not checked: whether Premium removes ads in the player
+- Live address: https://brainfodder.vercel.app (Vercel team cesarxdesign1, project brainfodder, deploys on every push to main)
