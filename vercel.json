@@ -1,0 +1,3 @@
+{
+  "functions": { "api/feed.js": { "maxDuration": 30 } }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "brainfodder",
+  "version": "0.1.0",
+  "description": "BrainFodder, a Google Reader style RSS reader",
+  "main": "index.html",
+  "dependencies": {
+    "fast-xml-parser": "^4.5.7"
+  },
+  "private": true
+}

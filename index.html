@@ -1,0 +1,1144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>BrainFodder</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%232b5fd9'/><path d='M18 20h28M18 32h28M18 44h18' stroke='white' stroke-width='6' stroke-linecap='round'/></svg>">
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.2.4/dist/purify.min.js"></script>
+<style>
+:root{
+  --bg:#ffffff;--side:#f4f5f7;--text:#1f2329;--muted:#727985;--line:#e2e5ea;--accent:#2b5fd9;
+  --hover:#eef2fb;--sel:#dde6fb;--star:#e8a700;--err:#c73e3e;--card:#ffffff;--code:#f2f3f5;
+  --font:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",Arial,sans-serif;
+  --read:Charter,"Iowan Old Style",Georgia,serif;
+}
+@media (prefers-color-scheme:dark){:root{
+  --bg:#15171b;--side:#1b1e23;--text:#e3e6eb;--muted:#8d949f;--line:#2b2f37;--accent:#7fa3ff;
+  --hover:#222733;--sel:#2a3350;--star:#f2c14e;--err:#ff7b7b;--card:#15171b;--code:#22262d;
+}}
+*{box-sizing:border-box}
+html,body{margin:0;height:100%;background:var(--bg);color:var(--text);font:13px/1.45 var(--font)}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer;padding:0}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+input,select{font:inherit;color:var(--text);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:6px 8px}
+input:focus{outline:2px solid var(--accent);outline-offset:-1px}
+
+#app{display:grid;grid-template-columns:270px 1fr;grid-template-rows:52px 1fr;height:100vh}
+header{grid-column:1/3;display:flex;align-items:center;gap:14px;padding:0 16px;border-bottom:1px solid var(--line)}
+.logo{font-weight:700;font-size:17px;letter-spacing:-.2px;width:238px;display:flex;align-items:center;gap:8px}
+.logo i{display:inline-block;width:22px;height:22px;border-radius:6px;background:var(--accent);position:relative}
+.logo i:after{content:"";position:absolute;left:5px;right:5px;top:6px;height:2px;background:#fff;box-shadow:0 4px 0 #fff,0 8px 0 #fff}
+#search{width:340px;max-width:40vw}
+header .sp{flex:1}
+.hbtn{padding:6px 10px;border-radius:6px;color:var(--muted)}
+.hbtn:hover{background:var(--hover);color:var(--text)}
+
+nav{background:var(--side);border-right:1px solid var(--line);overflow-y:auto;padding:12px 8px 40px}
+.add{display:block;width:100%;text-align:left;background:var(--accent);color:#fff;font-weight:600;border-radius:7px;padding:8px 12px;margin-bottom:14px}
+.add:hover{filter:brightness(1.08)}
+.nv{display:flex;align-items:center;gap:6px;padding:4px 8px;border-radius:6px;cursor:pointer;white-space:nowrap;position:relative;min-height:26px}
+.nv:hover{background:var(--hover)}
+.nv.on{background:var(--sel)}
+.nv .nm{flex:1;overflow:hidden;text-overflow:ellipsis}
+.nv.unread .nm,.nv.unread .ct{font-weight:700}
+.nv .ct{color:var(--muted);font-size:12px}
+.nv.unread .ct{color:var(--text)}
+.nv img{width:16px;height:16px;border-radius:3px;flex:none}
+.nv .tw{width:14px;flex:none;color:var(--muted);font-size:10px;text-align:center}
+.nv .ic{width:16px;flex:none;text-align:center;color:var(--muted)}
+.nv.feed{padding-left:28px}
+.nv .more{display:none;color:var(--muted);padding:0 4px;border-radius:4px}
+.nv:hover .more{display:block}
+.nv:hover .ct{display:none}
+.nv .more:hover{background:var(--line);color:var(--text)}
+.nv .er{color:var(--err);font-size:12px}
+.nv .spin{width:10px;height:10px;border:2px solid var(--line);border-top-color:var(--accent);border-radius:50%;animation:sp .8s linear infinite;flex:none}
+@keyframes sp{to{transform:rotate(360deg)}}
+.navh{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.6px;padding:14px 8px 4px}
+.empty-folder{color:var(--muted);font-size:12px;padding:2px 8px 4px 28px}
+
+main{display:flex;flex-direction:column;min-width:0;min-height:0}
+.bar{display:flex;align-items:center;gap:10px;padding:10px 20px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.bar h1{font-size:18px;margin:0 8px 0 0;max-width:40vw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar h1 a{color:var(--text)}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.seg button{padding:4px 10px;color:var(--muted)}
+.seg button.on{background:var(--sel);color:var(--text);font-weight:600}
+.btn{border:1px solid var(--line);border-radius:7px;padding:4px 10px}
+.btn:hover{background:var(--hover)}
+.bar .sp{flex:1}
+.bar .note{color:var(--muted);font-size:12px}
+#scroll{flex:1;overflow-y:auto;min-height:0}
+#items{padding-bottom:60vh}
+
+.item{border-bottom:1px solid var(--line);position:relative}
+.item.cur{box-shadow:inset 3px 0 0 var(--accent)}
+.row{display:none;align-items:center;gap:10px;padding:7px 20px;cursor:pointer;white-space:nowrap}
+.row:hover{background:var(--hover)}
+.row .src{width:150px;flex:none;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+.row .ttl{flex:1;overflow:hidden;text-overflow:ellipsis}
+.row .ttl b{font-weight:600}
+.row .snip{color:var(--muted)}
+.row .dt{flex:none;color:var(--muted);font-size:12px;width:70px;text-align:right}
+.item:not(.read) .row .ttl b,.item:not(.read) .row .src{color:var(--text)}
+.item:not(.read) .row .ttl b{font-weight:700}
+.item.read .row .ttl b{font-weight:400}
+.star{color:var(--muted);font-size:15px;line-height:1;width:16px;flex:none}
+.star.on{color:var(--star)}
+
+.full{display:none;padding:18px 20px 14px;max-width:820px}
+.list .row{display:flex}
+.list .item.open .full{display:block;border-top:1px solid var(--line);background:var(--card);max-width:none}
+.list .item.open .full>*{max-width:780px}
+.list .item.open .row{background:var(--hover)}
+.expanded .full{display:block}
+.meta{color:var(--muted);font-size:12px;display:flex;gap:6px;align-items:center}
+.meta img{width:14px;height:14px;border-radius:3px}
+.full h2{font:700 21px/1.3 var(--font);margin:6px 0 2px;letter-spacing:-.2px}
+.full h2 a{color:var(--text)}
+.item.read .full h2 a{color:var(--muted)}
+.item.read.cur .full h2 a{color:var(--text)}
+.by{color:var(--muted);font-size:12px}
+.body{font:16px/1.65 var(--read);margin-top:14px;overflow-wrap:anywhere}
+.body img,.body video{max-width:100%;height:auto;border-radius:4px}
+.body pre{background:var(--code);padding:10px;border-radius:6px;overflow-x:auto;font-size:13px}
+.body code{background:var(--code);padding:1px 4px;border-radius:4px;font-size:.88em}
+.body pre code{background:none;padding:0}
+.body blockquote{margin:0;padding-left:14px;border-left:3px solid var(--line);color:var(--muted)}
+.body table{border-collapse:collapse;max-width:100%;display:block;overflow-x:auto}
+.body td,.body th{border:1px solid var(--line);padding:4px 6px}
+.actions{display:flex;gap:16px;align-items:center;margin-top:16px;padding-top:10px;border-top:1px dashed var(--line);color:var(--muted);font-size:12px}
+.actions button,.actions a,.actions label{color:var(--muted);display:inline-flex;gap:5px;align-items:center;cursor:pointer}
+.actions button:hover,.actions a:hover,.actions label:hover{color:var(--text);text-decoration:none}
+.actions .star.on{color:var(--star)}
+.actions .on-star{color:var(--star)}
+.endmsg{padding:40px 20px;color:var(--muted);text-align:center}
+.endmsg button{color:var(--accent)}
+
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:flex-start;justify-content:center;padding-top:12vh;z-index:20}
+.modal{background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:440px;max-width:92vw;padding:20px}
+.modal h3{margin:0 0 14px;font-size:16px}
+.modal label{display:block;color:var(--muted);font-size:12px;margin:10px 0 4px}
+.modal input[type=text],.modal input[type=url]{width:100%}
+.modal .row2{display:flex;gap:8px;justify-content:flex-end;margin-top:18px;align-items:center}
+.modal .row2 .sp{flex:1}
+.primary{background:var(--accent);color:#fff;border-radius:7px;padding:6px 14px;font-weight:600}
+.danger{color:var(--err)}
+.modal .msg{color:var(--muted);font-size:12px;margin-top:8px;min-height:16px}
+.modal .msg.err{color:var(--err)}
+.keys{display:grid;grid-template-columns:90px 1fr;gap:4px 12px;font-size:12px}
+.keys kbd{font:12px ui-monospace,Menlo,monospace;background:var(--code);border:1px solid var(--line);border-radius:4px;padding:1px 5px}
+.modal.wide{width:560px}
+#shortsBtn.has{color:var(--text);font-weight:600}
+#player{position:fixed;inset:0;background:rgba(8,9,12,.94);z-index:25;display:none;flex-direction:column;align-items:center;justify-content:center;gap:12px;color:#e3e6eb}
+#player.on{display:flex}
+#player .frame{height:min(80vh,calc((100vw - 40px) * 16 / 9));aspect-ratio:9/16;background:#000;border-radius:12px;overflow:hidden}
+#player.wide .frame{height:auto;width:min(1100px,92vw);aspect-ratio:16/9}
+#player .frame iframe,#player .frame>div{width:100%;height:100%;border:0;display:block}
+#player .info{text-align:center;max-width:min(560px,92vw)}
+#player .info b{display:block;font-size:15px}
+#player .info span{color:#8d949f;font-size:12px}
+#player .ctl{display:flex;gap:10px;align-items:center}
+#player .ctl button{border:1px solid #3a3f49;border-radius:7px;padding:5px 12px;color:#e3e6eb}
+#player .ctl button:hover{background:#222733}
+#player .ctl .n{color:#8d949f;font-size:12px;min-width:60px;text-align:center}
+#player .done{color:#8d949f;font-size:14px;padding:40px}
+#toast{position:fixed;bottom:22px;left:50%;transform:translateX(-50%);background:#1f2329;color:#fff;padding:9px 16px;border-radius:9px;display:none;gap:14px;align-items:center;z-index:30;font-size:13px}
+#toast button{color:#9db8ff;font-weight:600}
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <div class="logo"><i></i>BrainFodder</div>
+    <input id="search" type="search" placeholder="Search loaded items   ( / )" autocomplete="off">
+    <div class="sp"></div>
+    <button class="hbtn" id="shortsBtn" title="Play your new Shorts (y)">Shorts</button>
+    <button class="hbtn" id="refreshBtn" title="Refresh (r)">Refresh</button>
+    <button class="hbtn" id="settingsBtn" title="Import, export, shortcuts">Settings</button>
+    <button class="hbtn" id="helpBtn" title="Keyboard shortcuts (?)">?</button>
+  </header>
+  <nav id="nav"></nav>
+  <main>
+    <div class="bar" id="bar"></div>
+    <div id="scroll"><div id="items"></div></div>
+  </main>
+</div>
+<div id="player">
+  <div class="frame"><div id="ytFrame"></div></div>
+  <div class="info"><b id="plTitle"></b><span id="plSrc"></span></div>
+  <div class="ctl"><button id="plPrev" title="k">Previous</button><span class="n" id="plN"></span><button id="plNext" title="j">Next</button><button id="plClose" title="Esc">Close</button></div>
+</div>
+<div id="toast"></div>
+<script>
+'use strict';
+const LS = 'brainfodder.v1';
+const DEFAULT_FOLDERS = ['Tennis', 'Tech', 'Misc'];
+const DEFAULT_SUBS = [
+  ['Tennis', 'ATP Tour', 'https://news.google.com/rss/search?q=site:atptour.com&hl=en-GB&gl=GB&ceid=GB:en'],
+  ['Tennis', 'WTA', 'https://news.google.com/rss/search?q=site:wtatennis.com&hl=en-GB&gl=GB&ceid=GB:en'],
+  ['Tennis', 'BBC Sport: Tennis', 'https://feeds.bbci.co.uk/sport/tennis/rss.xml'],
+  ['Tennis', 'The Guardian: Tennis', 'https://www.theguardian.com/sport/tennis/rss'],
+  ['Tennis', 'Tennis365', 'https://www.tennis365.com/feed'],
+  ['Tennis', 'Tennis Majors', 'https://www.tennismajors.com/feed'],
+  ['Tennis', 'Tennis Abstract', 'https://www.tennisabstract.com/blog/feed/'],
+  ['Tennis', 'Tennisnerd', 'https://www.tennisnerd.net/feed'],
+  ['Tennis', 'Perfect Tennis', 'https://www.perfect-tennis.com/feed/'],
+  ['Tennis', 'Scores and results', 'https://news.google.com/rss/search?q=tennis+(ATP+OR+WTA)+results+when:2d&hl=en-GB&gl=GB&ceid=GB:en'],
+  ['Tech', 'Simon Willison', 'https://simonwillison.net/atom/everything/'],
+  ['Tech', 'OpenAI News', 'https://openai.com/news/rss.xml'],
+  ['Tech', 'The Verge: AI', 'https://www.theverge.com/rss/ai-artificial-intelligence/index.xml'],
+  ['Tech', 'Import AI', 'https://jack-clark.net/feed/'],
+  ['Tech', '9to5Mac', 'https://9to5mac.com/feed/'],
+  ['Tech', 'MacRumors', 'https://feeds.macrumors.com/MacRumors-All'],
+  ['Tech', 'Daring Fireball', 'https://daringfireball.net/feeds/main'],
+  ['Tech', 'Electrek: Tesla', 'https://electrek.co/guides/tesla/feed/'],
+  ['Tech', 'Teslarati', 'https://www.teslarati.com/feed/'],
+  ['Tech', 'NASASpaceflight', 'https://www.nasaspaceflight.com/feed/'],
+  ['Tech', 'Spaceflight Now', 'https://spaceflightnow.com/feed/'],
+  ['Tech', 'Fintech Business Weekly', 'https://fintechbusinessweekly.substack.com/feed'],
+  ['Tech', 'Net Interest', 'https://www.netinterest.co/feed'],
+  ['Tech', 'Finextra', 'https://www.finextra.com/rss/headlines.aspx'],
+  ['Tech', 'Fintech Blueprint', 'https://lex.substack.com/feed'],
+  ['Misc', 'The Browser', 'https://thebrowser.com/free/rss/'],
+  ['Misc', 'Kottke', 'https://feeds.kottke.org/main'],
+  ['Misc', 'Marginal Revolution', 'https://marginalrevolution.com/feed'],
+  ['Misc', 'Hacker News: Best', 'https://hnrss.org/best'],
+  ['Misc', 'Works in Progress', 'https://worksinprogress.co/rss.xml'],
+  ['Misc', 'Asterisk', 'https://asteriskmag.com/feed'],
+  ['Misc', 'Quanta Magazine', 'https://www.quantamagazine.org/feed/'],
+  ['Misc', 'Construction Physics', 'https://www.construction-physics.com/feed'],
+  ['Misc', 'Maggie Appleton', 'https://maggieappleton.com/rss.xml'],
+  ['Misc', 'Dan Luu', 'https://danluu.com/atom.xml'],
+  ['Misc', 'Craig Mod', 'https://craigmod.com/index.xml'],
+  ['Misc', 'Fix the News', 'https://substack.fixthenews.com/feed'],
+  ['Misc', 'Veritasium', 'https://www.youtube.com/feeds/videos.xml?playlist_id=UULFHnyfMqiRRG1u-2MsSQLbXA'],
+  ['Misc', 'Veritasium: Shorts', 'https://www.youtube.com/feeds/videos.xml?playlist_id=UUSHHnyfMqiRRG1u-2MsSQLbXA'],
+  ['Misc', 'Cleo Abram', 'https://www.youtube.com/feeds/videos.xml?playlist_id=UULF415bOPUcGSamy543abLmRA'],
+  ['Misc', 'Cleo Abram: Shorts', 'https://www.youtube.com/feeds/videos.xml?playlist_id=UUSH415bOPUcGSamy543abLmRA'],
+  ['Misc', 'Hannah Fry', 'https://www.youtube.com/feeds/videos.xml?playlist_id=UULFsX5upzW0Tk2riDY1WB887w'],
+  ['Misc', 'Hannah Fry: Shorts', 'https://www.youtube.com/feeds/videos.xml?playlist_id=UUSHsX5upzW0Tk2riDY1WB887w'],
+  ['Misc', 'Kurzgesagt', 'https://www.youtube.com/feeds/videos.xml?playlist_id=UULFsXVk37bltHxD1rDPwtNM8Q'],
+  ['Misc', 'Kurzgesagt: Shorts', 'https://www.youtube.com/feeds/videos.xml?playlist_id=UUSHsXVk37bltHxD1rDPwtNM8Q'],
+  ['Misc', 'Mark Rober', 'https://www.youtube.com/feeds/videos.xml?playlist_id=UULFY1kMZp36IQSyNx_9h4mpCg'],
+  ['Misc', 'Mark Rober: Shorts', 'https://www.youtube.com/feeds/videos.xml?playlist_id=UUSHY1kMZp36IQSyNx_9h4mpCg'],
+  ['Misc', 'Smarter Every Day', 'https://www.youtube.com/feeds/videos.xml?playlist_id=UULF6107grRI4m0o2-emgoDnAA'],
+  ['Misc', 'Steve Mould', 'https://www.youtube.com/feeds/videos.xml?playlist_id=UULFEIwxahdLz7bap-VDs9h35A'],
+  ['Misc', 'Steve Mould: Shorts', 'https://www.youtube.com/feeds/videos.xml?playlist_id=UUSHEIwxahdLz7bap-VDs9h35A'],
+];
+const PAGE = 30;
+const FIRST_FETCH_UNREAD_DAYS = 14;
+const KEEP_DAYS = 90;
+
+const $ = (s, el = document) => el.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const uid = () => 'f' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+const host = (u) => { try { return new URL(u).hostname; } catch (_) { return ''; } };
+const favicon = (s) => `https://www.google.com/s2/favicons?domain=${encodeURIComponent(host(s.siteUrl || s.feedUrl || s.url))}&sz=32`;
+
+/* ---------- state ---------- */
+let state = loadState();
+function loadState() {
+  try {
+    const s = JSON.parse(localStorage.getItem(LS));
+    if (s && Array.isArray(s.subs)) {
+      s.folders = s.folders || [];
+      s.ui = Object.assign({ sel: 'all', view: 'expanded', showAll: false, collapsed: {} }, s.ui);
+      return s;
+    }
+  } catch (_) {}
+  return {
+    folders: [...DEFAULT_FOLDERS],
+    subs: DEFAULT_SUBS.map(([folder, title, url]) => ({ id: uid(), title, url, feedUrl: null, siteUrl: url, folder })),
+    ui: { sel: 'all', view: 'expanded', showAll: false, collapsed: {} },
+  };
+}
+function save() { try { localStorage.setItem(LS, JSON.stringify(state)); } catch (_) {} }
+function folders() {
+  const list = [...state.folders];
+  for (const s of state.subs) if (s.folder && !list.includes(s.folder)) list.push(s.folder);
+  state.folders = list;
+  return list;
+}
+const subById = () => Object.fromEntries(state.subs.map((s) => [s.id, s]));
+
+/* ---------- item store (IndexedDB) ---------- */
+const items = new Map();
+let db = null;
+function openDB() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open('brainfodder', 1);
+    r.onupgradeneeded = () => r.result.createObjectStore('items', { keyPath: 'id' });
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+function idbAll() {
+  return new Promise((res, rej) => {
+    const q = db.transaction('items').objectStore('items').getAll();
+    q.onsuccess = () => res(q.result);
+    q.onerror = () => rej(q.error);
+  });
+}
+const dirty = new Set();
+const gone = new Set();
+let flushT = null;
+function touch(it) { dirty.add(it.id); clearTimeout(flushT); flushT = setTimeout(flush, 250); }
+function drop(id) { items.delete(id); gone.add(id); dirty.delete(id); clearTimeout(flushT); flushT = setTimeout(flush, 250); }
+function flush() {
+  if (!db || (!dirty.size && !gone.size)) return;
+  const tx = db.transaction('items', 'readwrite');
+  const st = tx.objectStore('items');
+  for (const id of dirty) { const it = items.get(id); if (it) st.put(it); }
+  for (const id of gone) st.delete(id);
+  dirty.clear(); gone.clear();
+}
+addEventListener('beforeunload', flush);
+
+/* ---------- fetching ---------- */
+const loading = new Set();
+const errors = {};
+let refreshing = false;
+
+async function fetchFeed(url) {
+  const r = await fetch('/api/feed?url=' + encodeURIComponent(url));
+  let j = {};
+  try { j = await r.json(); } catch (_) {}
+  if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
+  return j;
+}
+
+function ingest(sub, j) {
+  if (!sub.feedUrl) sub.feedUrl = j.feedUrl;
+  if (j.siteUrl && (!sub.siteUrl || sub.siteUrl === sub.url)) sub.siteUrl = j.siteUrl;
+  if (!sub.title) sub.title = j.title || host(sub.url);
+  const first = !sub.fetched;
+  sub.fetched = Date.now();
+  const cutoff = Date.now() - FIRST_FETCH_UNREAD_DAYS * 864e5;
+  let fresh = 0;
+  for (const it of j.items || []) {
+    const id = sub.id + '|' + it.guid;
+    const old = items.get(id);
+    // future dates (event listings) would sit on top for weeks, so cap them at now
+    const date = it.date ? Math.min(Date.parse(it.date), old ? old.date : Date.now()) : old ? old.date : Date.now();
+    if (old && old.title === it.title && old.content === it.content && old.date === date && (!it.yt || old.yt)) continue;
+    const n = {
+      id, feed: sub.id, title: it.title, link: it.link, author: it.author, date,
+      content: it.content, snippet: it.snippet, yt: it.yt || null,
+      read: old ? old.read : first && date < cutoff,
+      starred: old ? old.starred : false,
+      keepUnread: old ? old.keepUnread : false,
+      seen: old ? old.seen : Date.now(),
+    };
+    if (!old && !n.read) fresh++;
+    items.set(id, n);
+    touch(n);
+  }
+  return fresh;
+}
+
+async function refreshFeed(sub) {
+  loading.add(sub.id);
+  renderNav();
+  try {
+    ingest(sub, await fetchFeed(sub.feedUrl || sub.url));
+    delete errors[sub.id];
+  } catch (e) {
+    errors[sub.id] = e.message;
+  } finally {
+    loading.delete(sub.id);
+    save();
+  }
+}
+
+async function refreshAll() {
+  if (refreshing) return;
+  refreshing = true;
+  const queue = [...state.subs];
+  const worker = async () => { while (queue.length) { await refreshFeed(queue.shift()); renderNav(); } };
+  await Promise.all(Array.from({ length: 5 }, worker));
+  prune();
+  refreshing = false;
+  renderNav();
+  renderItems({ keepScroll: true });
+}
+
+function prune() {
+  const old = Date.now() - KEEP_DAYS * 864e5;
+  const subs = subById();
+  for (const it of [...items.values()]) {
+    if (it.starred) continue;
+    if (!subs[it.feed] || (it.read && Math.max(it.date, it.seen) < old)) drop(it.id);
+  }
+}
+
+/* ---------- selection ---------- */
+let curId = null;
+let openId = null;
+let keep = new Set();
+let vis = [];
+let rendered = 0;
+let query = '';
+
+function unread(pred) { let n = 0; for (const it of items.values()) if (!it.read && pred(it)) n++; return n; }
+
+function selLabel(sel) {
+  if (sel === 'all') return { title: 'All items' };
+  if (sel === 'starred') return { title: 'Starred items' };
+  if (sel.startsWith('folder:')) return { title: sel.slice(7) };
+  const s = subById()[sel.slice(5)];
+  return s ? { title: s.title, link: s.siteUrl, sub: s } : { title: 'All items' };
+}
+
+function computeVis() {
+  const subs = subById();
+  const sel = state.ui.sel;
+  let arr = [...items.values()];
+  if (sel === 'starred') arr = arr.filter((i) => i.starred);
+  else if (sel.startsWith('folder:')) {
+    const f = sel.slice(7);
+    arr = arr.filter((i) => subs[i.feed] && subs[i.feed].folder === f);
+  } else if (sel.startsWith('feed:')) arr = arr.filter((i) => i.feed === sel.slice(5));
+  else arr = arr.filter((i) => subs[i.feed]);
+  if (sel !== 'starred' && !state.ui.showAll && !query) arr = arr.filter((i) => !i.read || keep.has(i.id));
+  if (query) {
+    const q = query.toLowerCase();
+    arr = arr.filter((i) => (i.title + ' ' + (i.snippet || '') + ' ' + (i.author || '')).toLowerCase().includes(q));
+  }
+  arr.sort((a, b) => b.date - a.date);
+  for (const i of arr) keep.add(i.id);
+  return arr;
+}
+
+function select(sel) {
+  if (sel.startsWith('feed:') && !subById()[sel.slice(5)]) sel = 'all';
+  state.ui.sel = sel;
+  keep = new Set();
+  curId = null; openId = null;
+  save();
+  renderNav();
+  renderItems();
+  $('#scroll').scrollTop = 0;
+}
+
+/* ---------- read state ---------- */
+function setRead(it, read, auto) {
+  if (!it || it.read === read) return;
+  if (auto && it.keepUnread) return;
+  it.read = read;
+  if (!read && !auto) it.keepUnread = true;
+  if (read && !auto) it.keepUnread = false;
+  touch(it);
+  updateItemEl(it);
+  renderNav();
+  setTitle();
+}
+function toggleStar(it) {
+  if (!it) return;
+  it.starred = !it.starred;
+  touch(it);
+  updateItemEl(it);
+  renderNav();
+}
+let undoIds = null;
+function markAllRead() {
+  const ids = vis.filter((i) => !i.read).map((i) => i.id);
+  if (!ids.length) return toast('Nothing unread here');
+  ids.forEach((id) => { const it = items.get(id); it.read = true; it.keepUnread = false; touch(it); });
+  undoIds = ids;
+  renderNav();
+  renderItems({ keepScroll: true });
+  toast(`${ids.length} item${ids.length > 1 ? 's' : ''} marked as read`, 'Undo', () => {
+    undoIds.forEach((id) => { const it = items.get(id); if (it) { it.read = false; touch(it); } });
+    renderNav(); renderItems({ keepScroll: true });
+  });
+}
+
+/* ---------- sharing ---------- */
+async function share(it) {
+  if (!it) return;
+  if (navigator.share) {
+    try { await navigator.share({ title: it.title, url: it.link }); return; }
+    catch (e) { if (e.name === 'AbortError') return; }
+  }
+  try { await navigator.clipboard.writeText(it.link); toast('Link copied'); }
+  catch (_) { toast('Could not copy the link'); }
+}
+function email(it) {
+  if (!it) return;
+  location.href = `mailto:?subject=${encodeURIComponent(it.title)}&body=${encodeURIComponent(it.title + '\n\n' + it.link)}`;
+}
+const openOriginal = (it) => it && it.link && window.open(it.link, '_blank', 'noopener');
+
+/* ---------- rendering: sidebar ---------- */
+function navOrder() {
+  const out = ['all', 'starred'];
+  for (const f of folders()) {
+    out.push('folder:' + f);
+    if (!state.ui.collapsed[f]) for (const s of state.subs) if (s.folder === f) out.push('feed:' + s.id);
+  }
+  for (const s of state.subs) if (!s.folder) out.push('feed:' + s.id);
+  return out;
+}
+
+function renderNav() {
+  const subs = state.subs;
+  const sel = state.ui.sel;
+  const perFeed = {};
+  let total = 0, starred = 0;
+  for (const it of items.values()) {
+    if (it.starred) starred++;
+    if (!it.read && subById()[it.feed]) { perFeed[it.feed] = (perFeed[it.feed] || 0) + 1; total++; }
+  }
+  const feedRow = (s) => {
+    const n = perFeed[s.id] || 0;
+    const status = loading.has(s.id) ? '<span class="spin"></span>' : errors[s.id] ? `<span class="er" title="${esc(errors[s.id])}">!</span>` : '';
+    return `<div class="nv ${s.folder ? 'feed' : ''} ${n ? 'unread' : ''} ${sel === 'feed:' + s.id ? 'on' : ''}" data-sel="feed:${s.id}" title="${esc(errors[s.id] || s.title)}">
+      <img src="${favicon(s)}" alt="" loading="lazy"><span class="nm">${esc(s.title || s.url)}</span>${status}
+      ${n ? `<span class="ct">${n}</span>` : ''}<button class="more" data-edit="${s.id}" title="Edit feed">⋯</button></div>`;
+  };
+  let h = `<button class="add" id="addBtn">+ Add a subscription</button>
+    <div class="nv ${total ? 'unread' : ''} ${sel === 'all' ? 'on' : ''}" data-sel="all"><span class="ic">≡</span><span class="nm">All items</span>${total ? `<span class="ct">${total}</span>` : ''}</div>
+    <div class="nv ${sel === 'starred' ? 'on' : ''}" data-sel="starred"><span class="ic" style="color:var(--star)">★</span><span class="nm">Starred items</span>${starred ? `<span class="ct">${starred}</span>` : ''}</div>
+    <div class="navh">Subscriptions</div>`;
+  for (const f of folders()) {
+    const inF = subs.filter((s) => s.folder === f);
+    const n = inF.reduce((a, s) => a + (perFeed[s.id] || 0), 0);
+    const col = !!state.ui.collapsed[f];
+    h += `<div class="nv ${n ? 'unread' : ''} ${sel === 'folder:' + f ? 'on' : ''}" data-sel="folder:${esc(f)}">
+      <span class="tw" data-fold="${esc(f)}">${col ? '▶' : '▼'}</span><span class="nm">${esc(f)}</span>${n ? `<span class="ct">${n}</span>` : ''}
+      <button class="more" data-editfolder="${esc(f)}" title="Rename or remove folder">⋯</button></div>`;
+    if (!col) {
+      h += inF.map(feedRow).join('');
+      if (!inF.length) h += `<div class="empty-folder">Empty. Add a feed to it.</div>`;
+    }
+  }
+  h += subs.filter((s) => !s.folder).map(feedRow).join('');
+  $('#nav').innerHTML = h;
+  setTitle();
+  renderShortsBtn();
+}
+
+function setTitle() {
+  let n = 0;
+  const subs = subById();
+  for (const it of items.values()) if (!it.read && subs[it.feed]) n++;
+  document.title = (n ? `(${n}) ` : '') + 'BrainFodder';
+}
+
+/* ---------- rendering: items ---------- */
+function fmtDate(ms) {
+  const d = new Date(ms), now = new Date();
+  if (now - d < 864e5 && d.getDate() === now.getDate()) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  if (d.getFullYear() === now.getFullYear()) return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  return d.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+}
+const fullDate = (ms) => new Date(ms).toLocaleString([], { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+
+function renderBar() {
+  const lab = selLabel(state.ui.sel);
+  const isStar = state.ui.sel === 'starred';
+  const n = vis.filter((i) => !i.read).length;
+  $('#bar').innerHTML = `
+    <h1>${lab.link ? `<a href="${esc(lab.link)}" target="_blank" rel="noopener">${esc(lab.title)} ↗</a>` : esc(lab.title)}</h1>
+    ${isStar ? '' : `<div class="seg"><button data-show="new" class="${state.ui.showAll ? '' : 'on'}">${n} new</button><button data-show="all" class="${state.ui.showAll ? 'on' : ''}">All items</button></div>
+    <button class="btn" id="markAll" title="Shift+A">Mark all as read</button>`}
+    <div class="seg"><button data-view="expanded" class="${state.ui.view === 'expanded' ? 'on' : ''}" title="1">Expanded</button><button data-view="list" class="${state.ui.view === 'list' ? 'on' : ''}" title="2">List</button></div>
+    <div class="sp"></div>
+    ${query ? `<span class="note">Searching “${esc(query)}”</span>` : ''}
+    ${lab.sub && errors[lab.sub.id] ? `<span class="note" style="color:var(--err)">Couldn't load: ${esc(errors[lab.sub.id])}</span>` : ''}`;
+}
+
+function itemHTML(it) {
+  const s = subById()[it.feed] || { title: 'Unsubscribed', url: it.link };
+  return `<article class="item ${it.read ? 'read' : ''} ${it.id === curId ? 'cur' : ''} ${it.id === openId ? 'open' : ''}" data-id="${esc(it.id)}">
+    <div class="row">
+      <button class="star ${it.starred ? 'on' : ''}" data-act="star">${it.starred ? '★' : '☆'}</button>
+      <span class="src">${esc(s.title)}</span>
+      <span class="ttl"><b>${esc(it.title)}</b> <span class="snip">- ${esc(it.snippet || '')}</span></span>
+      <span class="dt">${fmtDate(it.date)}</span>
+    </div>
+    <div class="full">
+      <div class="meta"><img src="${favicon(s)}" alt=""><span>${esc(s.title)}</span><span>·</span><time>${fullDate(it.date)}</time></div>
+      <h2><a href="${esc(it.link)}" target="_blank" rel="noopener">${esc(it.title)}</a></h2>
+      ${it.author ? `<div class="by">by ${esc(it.author)}</div>` : ''}
+      <div class="body"></div>
+      <div class="actions">
+        ${it.yt ? `<button data-act="play">▶ Play${it.yt.short ? ' Shorts from here' : ''}</button>` : ''}
+        <button data-act="star" class="${it.starred ? 'on-star' : ''}">${it.starred ? '★ Starred' : '☆ Add star'}</button>
+        <button data-act="share">Share</button>
+        <button data-act="email">Email</button>
+        <label><input type="checkbox" data-act="keep" ${it.keepUnread ? 'checked' : ''}> Keep unread</label>
+        <a href="${esc(it.link)}" target="_blank" rel="noopener">Open original ↗</a>
+      </div>
+    </div>
+  </article>`;
+}
+
+if (window.DOMPurify) {
+  DOMPurify.addHook('afterSanitizeAttributes', (n) => {
+    if (n.tagName === 'A') { n.setAttribute('target', '_blank'); n.setAttribute('rel', 'noopener noreferrer'); }
+    if (n.tagName === 'IMG') { n.setAttribute('loading', 'lazy'); n.removeAttribute('width'); n.removeAttribute('height'); }
+  });
+}
+function fillBody(el, it) {
+  const body = $('.body', el);
+  if (!body || body.dataset.done) return;
+  body.dataset.done = 1;
+  if (!window.DOMPurify) { body.textContent = it.snippet || ''; return; }
+  body.innerHTML = DOMPurify.sanitize(it.content || it.snippet || '', {
+    FORBID_TAGS: ['style', 'form', 'input', 'button', 'textarea', 'select'],
+    FORBID_ATTR: ['style', 'class', 'id'],
+  });
+  for (const n of body.querySelectorAll('[src],[href]')) {
+    for (const a of ['src', 'href']) {
+      const v = n.getAttribute(a);
+      if (v && !/^(https?:|mailto:|data:|#)/i.test(v)) { try { n.setAttribute(a, new URL(v, it.link).href); } catch (_) {} }
+    }
+  }
+  for (const img of body.querySelectorAll('img[srcset]')) img.removeAttribute('srcset');
+}
+
+function renderItems(opt = {}) {
+  const sc = $('#scroll');
+  const top = sc.scrollTop;
+  vis = computeVis();
+  renderBar();
+  const box = $('#items');
+  box.className = state.ui.view;
+  rendered = 0;
+  box.innerHTML = '';
+  if (opt.keepScroll && curId) {
+    const idx = vis.findIndex((i) => i.id === curId);
+    renderMore(Math.max(PAGE, idx + 10));
+  } else renderMore(PAGE);
+  if (opt.keepScroll) sc.scrollTop = top;
+}
+
+function renderMore(count = PAGE) {
+  const box = $('#items');
+  const end = Math.min(vis.length, rendered + count);
+  $('.endmsg', box)?.remove();
+  const frag = document.createElement('div');
+  frag.innerHTML = vis.slice(rendered, end).map(itemHTML).join('');
+  const els = [...frag.children];
+  els.forEach((el) => box.appendChild(el));
+  if (state.ui.view === 'expanded') els.forEach((el) => fillBody(el, items.get(el.dataset.id)));
+  else if (openId) { const el = box.querySelector(`[data-id="${CSS.escape(openId)}"]`); if (el) fillBody(el, items.get(openId)); }
+  rendered = end;
+  if (rendered >= vis.length) {
+    const d = document.createElement('div');
+    d.className = 'endmsg';
+    if (!vis.length) {
+      d.innerHTML = query ? 'Nothing matches that search.'
+        : state.ui.sel === 'starred' ? 'No starred items yet. Press s on anything worth keeping.'
+        : refreshing ? 'Loading feeds…'
+        : `No new items here. <button data-show="all">Show all items</button>`;
+    } else {
+      d.innerHTML = `That's everything. ${vis.some((i) => !i.read) ? '<button id="endMark">Mark all as read</button> · ' : ''}<button id="endNext">Next subscription with new items</button>`;
+    }
+    box.appendChild(d);
+  }
+}
+
+function elFor(id) { return $('#items').querySelector(`[data-id="${CSS.escape(id)}"]`); }
+
+function updateItemEl(it) {
+  const el = elFor(it.id);
+  if (!el) return;
+  el.classList.toggle('read', it.read);
+  for (const b of el.querySelectorAll('[data-act="star"]')) {
+    if (b.classList.contains('star')) { b.classList.toggle('on', it.starred); b.textContent = it.starred ? '★' : '☆'; }
+    else { b.classList.toggle('on-star', it.starred); b.textContent = it.starred ? '★ Starred' : '☆ Add star'; }
+  }
+  const k = el.querySelector('[data-act="keep"]');
+  if (k) k.checked = !!it.keepUnread;
+  const n = vis.filter((i) => !i.read).length;
+  const seg = $('#bar [data-show="new"]');
+  if (seg) seg.textContent = n + ' new';
+}
+
+function setCur(id, { scroll = false, open = false } = {}) {
+  if (curId && curId !== id) elFor(curId)?.classList.remove('cur');
+  curId = id;
+  const it = items.get(id);
+  let el = elFor(id);
+  if (!el) {
+    const idx = vis.findIndex((i) => i.id === id);
+    if (idx >= rendered) renderMore(idx - rendered + PAGE);
+    el = elFor(id);
+  }
+  if (!el || !it) return;
+  el.classList.add('cur');
+  if (state.ui.view === 'list') {
+    if (open) {
+      if (openId && openId !== id) elFor(openId)?.classList.remove('open');
+      openId = id;
+      el.classList.add('open');
+      fillBody(el, it);
+      setRead(it, true, true);
+    }
+  } else setRead(it, true, true);
+  if (scroll) scrollToEl(el, state.ui.view === 'list' && !open);
+}
+
+let progScroll = 0;
+function scrollToEl(el, minimal) {
+  const sc = $('#scroll');
+  progScroll = Date.now();
+  if (minimal) el.scrollIntoView({ block: 'nearest' });
+  else sc.scrollTop = el.offsetTop - $('#items').offsetTop;
+}
+
+function move(dir, open) {
+  if (!vis.length) return;
+  let idx = vis.findIndex((i) => i.id === curId);
+  idx = idx < 0 ? (dir > 0 ? 0 : 0) : Math.max(0, Math.min(vis.length - 1, idx + dir));
+  setCur(vis[idx].id, { scroll: true, open: state.ui.view === 'list' ? open : false });
+}
+
+function toggleOpen() {
+  if (state.ui.view !== 'list' || !curId) return;
+  const el = elFor(curId);
+  if (openId === curId) { el?.classList.remove('open'); openId = null; }
+  else setCur(curId, { scroll: true, open: true });
+}
+
+function nextSub(dir, unreadOnly) {
+  const order = navOrder();
+  let i = order.indexOf(state.ui.sel);
+  const subs = subById();
+  const count = (sel) => sel === 'all' ? 1 : sel === 'starred' ? 1
+    : sel.startsWith('folder:') ? unread((it) => subs[it.feed]?.folder === sel.slice(7))
+    : unread((it) => it.feed === sel.slice(5));
+  for (let step = 0; step < order.length; step++) {
+    i = (i + dir + order.length) % order.length;
+    const s = order[i];
+    if (!unreadOnly) return select(s);
+    if (s.startsWith('feed:') && count(s)) return select(s);
+  }
+  toast('No more new items anywhere');
+}
+
+/* ---------- scroll: current item follows the reading position ---------- */
+$('#scroll').addEventListener('scroll', () => {
+  const sc = $('#scroll');
+  if (sc.scrollTop + sc.clientHeight > sc.scrollHeight - 2000 && rendered < vis.length) renderMore();
+  if (state.ui.view !== 'expanded' || Date.now() - progScroll < 120) return;
+  const top = sc.getBoundingClientRect().top;
+  for (const el of $('#items').children) {
+    if (!el.dataset.id) continue;
+    if (el.getBoundingClientRect().bottom > top + 12) {
+      if (el.dataset.id !== curId) setCur(el.dataset.id);
+      break;
+    }
+  }
+}, { passive: true });
+
+/* ---------- clicks ---------- */
+$('#items').addEventListener('click', (e) => {
+  const art = e.target.closest('.item');
+  if (e.target.closest('#endMark')) return markAllRead();
+  if (e.target.closest('#endNext')) return nextSub(1, true);
+  if (e.target.closest('[data-show="all"]')) { state.ui.showAll = true; save(); return renderItems(); }
+  if (!art) return;
+  const it = items.get(art.dataset.id);
+  const act = e.target.closest('[data-act]')?.dataset.act;
+  if (act === 'star') { e.preventDefault(); return toggleStar(it); }
+  if (act === 'play') return playFrom(it);
+  if (act === 'share') return share(it);
+  if (act === 'email') return email(it);
+  if (act === 'keep') { const on = e.target.checked; it.keepUnread = on; it.read = !on; touch(it); updateItemEl(it); renderNav(); return; }
+  if (e.target.closest('.row')) {
+    if (openId === it.id) { art.classList.remove('open'); openId = null; setCur(it.id); }
+    else setCur(it.id, { scroll: true, open: true });
+    return;
+  }
+  if (it.id !== curId) setCur(it.id);
+});
+
+$('#bar').addEventListener('click', (e) => {
+  const v = e.target.closest('[data-view]')?.dataset.view;
+  if (v) return setView(v);
+  const s = e.target.closest('[data-show]')?.dataset.show;
+  if (s) { state.ui.showAll = s === 'all'; keep = new Set(); save(); return renderItems(); }
+  if (e.target.closest('#markAll')) markAllRead();
+});
+
+function setView(v) {
+  state.ui.view = v; openId = null; save();
+  const id = curId;
+  renderItems();
+  if (id && vis.some((i) => i.id === id)) { curId = null; setCur(id, { scroll: true }); }
+}
+
+$('#nav').addEventListener('click', (e) => {
+  if (e.target.closest('#addBtn')) return addModal();
+  const ed = e.target.closest('[data-edit]');
+  if (ed) { e.stopPropagation(); return editFeedModal(ed.dataset.edit); }
+  const ef = e.target.closest('[data-editfolder]');
+  if (ef) { e.stopPropagation(); return editFolderModal(ef.dataset.editfolder); }
+  const fold = e.target.closest('[data-fold]');
+  if (fold) { const f = fold.dataset.fold; state.ui.collapsed[f] = !state.ui.collapsed[f]; save(); return renderNav(); }
+  const nv = e.target.closest('[data-sel]');
+  if (nv) select(nv.dataset.sel);
+});
+
+$('#refreshBtn').onclick = () => { toast('Refreshing…'); refreshAll(); };
+$('#helpBtn').onclick = () => helpModal();
+$('#settingsBtn').onclick = () => settingsModal();
+let qT;
+$('#search').addEventListener('input', (e) => {
+  clearTimeout(qT);
+  qT = setTimeout(() => { query = e.target.value.trim(); keep = new Set(); curId = null; openId = null; renderItems(); }, 150);
+});
+
+/* ---------- modals ---------- */
+function modal(html, cls = '') {
+  closeModal();
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg';
+  bg.innerHTML = `<div class="modal ${cls}">${html}</div>`;
+  bg.addEventListener('mousedown', (e) => { if (e.target === bg) closeModal(); });
+  document.body.appendChild(bg);
+  const first = bg.querySelector('input[type=text],input[type=url]');
+  if (first) setTimeout(() => first.focus(), 0);
+  return bg;
+}
+function closeModal() { document.querySelector('.modal-bg')?.remove(); }
+const folderList = () => `<datalist id="folders">${folders().map((f) => `<option value="${esc(f)}">`).join('')}</datalist>`;
+
+function addModal() {
+  const cur = state.ui.sel.startsWith('folder:') ? state.ui.sel.slice(7) : '';
+  const m = modal(`<h3>Add a subscription</h3>
+    <form id="addForm">
+      <label>Website or feed address</label><input type="url" id="addUrl" placeholder="https://example.com" required>
+      <label>Folder</label><input type="text" id="addFolder" list="folders" value="${esc(cur)}" placeholder="Tennis, Tech, Misc or a new one">${folderList()}
+      <div class="msg" id="addMsg"></div>
+      <div class="row2"><button type="button" class="btn" id="cancel">Cancel</button><button class="primary" type="submit">Add</button></div>
+    </form>`);
+  $('#cancel', m).onclick = closeModal;
+  $('#addForm', m).onsubmit = async (e) => {
+    e.preventDefault();
+    const url = $('#addUrl', m).value.trim();
+    const folder = $('#addFolder', m).value.trim();
+    const msg = $('#addMsg', m);
+    msg.className = 'msg'; msg.textContent = 'Looking for a feed…';
+    try {
+      const j = await fetchFeed(url);
+      const dupe = state.subs.find((s) => s.feedUrl === j.feedUrl);
+      if (dupe) { msg.className = 'msg err'; msg.textContent = `Already subscribed as “${dupe.title}”.`; return; }
+      const sub = { id: uid(), title: j.title || host(url), url, feedUrl: j.feedUrl, siteUrl: j.siteUrl || url, folder };
+      state.subs.push(sub);
+      if (folder && !state.folders.includes(folder)) state.folders.push(folder);
+      ingest(sub, j);
+      save();
+      closeModal();
+      select('feed:' + sub.id);
+      toast(`Subscribed to ${sub.title}`);
+    } catch (err) { msg.className = 'msg err'; msg.textContent = err.message; }
+  };
+}
+
+function editFeedModal(id) {
+  const s = subById()[id];
+  if (!s) return;
+  const m = modal(`<h3>Edit feed</h3>
+    <form id="edForm">
+      <label>Name</label><input type="text" id="edTitle" value="${esc(s.title)}">
+      <label>Folder</label><input type="text" id="edFolder" list="folders" value="${esc(s.folder || '')}" placeholder="No folder">${folderList()}
+      <label>Feed address</label><div style="font-size:12px;color:var(--muted);word-break:break-all">${esc(s.feedUrl || s.url)}</div>
+      <div class="row2"><button type="button" class="btn danger" id="unsub">Unsubscribe</button><div class="sp"></div><button type="button" class="btn" id="cancel">Cancel</button><button class="primary" type="submit">Save</button></div>
+    </form>`);
+  $('#cancel', m).onclick = closeModal;
+  $('#unsub', m).onclick = () => {
+    state.subs = state.subs.filter((x) => x.id !== id);
+    for (const it of [...items.values()]) if (it.feed === id && !it.starred) drop(it.id);
+    save(); closeModal();
+    if (state.ui.sel === 'feed:' + id) select('all'); else { renderNav(); renderItems({ keepScroll: true }); }
+    toast(`Unsubscribed from ${s.title}`);
+  };
+  $('#edForm', m).onsubmit = (e) => {
+    e.preventDefault();
+    s.title = $('#edTitle', m).value.trim() || s.title;
+    s.folder = $('#edFolder', m).value.trim();
+    if (s.folder && !state.folders.includes(s.folder)) state.folders.push(s.folder);
+    save(); closeModal(); renderNav(); renderItems({ keepScroll: true });
+  };
+}
+
+function editFolderModal(f) {
+  const m = modal(`<h3>Folder</h3>
+    <form id="fForm">
+      <label>Name</label><input type="text" id="fName" value="${esc(f)}">
+      <div class="msg">Removing the folder keeps its feeds, they just move out of it.</div>
+      <div class="row2"><button type="button" class="btn danger" id="fDel">Remove folder</button><div class="sp"></div><button type="button" class="btn" id="cancel">Cancel</button><button class="primary" type="submit">Save</button></div>
+    </form>`);
+  $('#cancel', m).onclick = closeModal;
+  $('#fDel', m).onclick = () => {
+    state.folders = state.folders.filter((x) => x !== f);
+    state.subs.forEach((s) => { if (s.folder === f) s.folder = ''; });
+    save(); closeModal();
+    if (state.ui.sel === 'folder:' + f) select('all'); else renderNav();
+  };
+  $('#fForm', m).onsubmit = (e) => {
+    e.preventDefault();
+    const n = $('#fName', m).value.trim();
+    if (!n || n === f) return closeModal();
+    state.folders = state.folders.map((x) => (x === f ? n : x)).filter((x, i, a) => a.indexOf(x) === i);
+    state.subs.forEach((s) => { if (s.folder === f) s.folder = n; });
+    if (state.ui.collapsed[f]) { state.ui.collapsed[n] = true; delete state.ui.collapsed[f]; }
+    save(); closeModal();
+    if (state.ui.sel === 'folder:' + f) select('folder:' + n); else renderNav();
+  };
+}
+
+function settingsModal() {
+  const m = modal(`<h3>Settings</h3>
+    <label>Bring feeds in from another reader (OPML file)</label>
+    <input type="file" id="opmlIn" accept=".opml,.xml,text/xml">
+    <label>Take your feeds elsewhere</label>
+    <button class="btn" id="opmlOut">Export OPML</button>
+    <label>New folder</label>
+    <form id="nfForm" style="display:flex;gap:8px"><input type="text" id="nfName" placeholder="Folder name" style="flex:1"><button class="btn">Create</button></form>
+    <div class="msg" id="setMsg"></div>
+    <div class="row2"><button class="btn" id="keysBtn">Keyboard shortcuts</button><div class="sp"></div><button class="primary" id="done">Done</button></div>`);
+  $('#done', m).onclick = closeModal;
+  $('#keysBtn', m).onclick = helpModal;
+  $('#opmlOut', m).onclick = exportOPML;
+  $('#nfForm', m).onsubmit = (e) => {
+    e.preventDefault();
+    const n = $('#nfName', m).value.trim();
+    if (n && !state.folders.includes(n)) { state.folders.push(n); save(); renderNav(); }
+    $('#setMsg', m).textContent = n ? `Folder “${n}” ready.` : '';
+    $('#nfName', m).value = '';
+  };
+  $('#opmlIn', m).onchange = async (e) => {
+    const f = e.target.files[0];
+    if (!f) return;
+    const n = importOPML(await f.text());
+    $('#setMsg', m).textContent = n ? `Added ${n} feed${n > 1 ? 's' : ''}. Loading them now.` : 'No new feeds found in that file.';
+    if (n) { renderNav(); refreshAll(); }
+  };
+}
+
+function importOPML(text) {
+  const doc = new DOMParser().parseFromString(text, 'text/xml');
+  let added = 0;
+  for (const o of doc.querySelectorAll('outline[xmlUrl]')) {
+    const url = o.getAttribute('xmlUrl');
+    if (state.subs.some((s) => s.feedUrl === url || s.url === url)) continue;
+    const parent = o.parentElement?.closest('outline:not([xmlUrl])');
+    const folder = parent ? parent.getAttribute('title') || parent.getAttribute('text') || '' : '';
+    if (folder && !state.folders.includes(folder)) state.folders.push(folder);
+    state.subs.push({ id: uid(), title: o.getAttribute('title') || o.getAttribute('text') || host(url), url, feedUrl: url, siteUrl: o.getAttribute('htmlUrl') || '', folder });
+    added++;
+  }
+  save();
+  return added;
+}
+
+function exportOPML() {
+  const a = (v) => esc(v || '');
+  const line = (s) => `    <outline type="rss" text="${a(s.title)}" title="${a(s.title)}" xmlUrl="${a(s.feedUrl || s.url)}" htmlUrl="${a(s.siteUrl)}"/>`;
+  let body = folders().map((f) => `  <outline text="${a(f)}" title="${a(f)}">\n${state.subs.filter((s) => s.folder === f).map(line).join('\n')}\n  </outline>`).join('\n');
+  body += '\n' + state.subs.filter((s) => !s.folder).map((s) => line(s).slice(2)).join('\n');
+  const xml = `<?xml version="1.0" encoding="UTF-8"?>\n<opml version="2.0">\n<head><title>BrainFodder subscriptions</title></head>\n<body>\n${body}\n</body>\n</opml>\n`;
+  const url = URL.createObjectURL(new Blob([xml], { type: 'text/xml' }));
+  const link = Object.assign(document.createElement('a'), { href: url, download: 'brainfodder.opml' });
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function helpModal() {
+  const k = [
+    ['j / k', 'Next / previous item (opens it in List view)'],
+    ['n / p', 'Move down / up without opening (List view)'],
+    ['o or Enter', 'Open or close the item (List view)'],
+    ['s', 'Star or unstar'],
+    ['m', 'Mark read or unread'],
+    ['v', 'Open the original in a new tab'],
+    ['Shift + S', 'Share'],
+    ['e', 'Email the link'],
+    ['Shift + A', 'Mark all as read'],
+    ['Shift + J / K', 'Next / previous subscription'],
+    ['Space', 'Next subscription with new items, at the end of a list'],
+    ['1 / 2', 'Expanded / List view'],
+    ['g then a', 'Go to all items'],
+    ['g then s', 'Go to starred items'],
+    ['y', 'Play your new Shorts, newest first; the next starts when one ends'],
+    ['r', 'Refresh all feeds'],
+    ['a', 'Add a subscription'],
+    ['/', 'Search'],
+    ['Esc', 'Close a window or leave search'],
+  ];
+  modal(`<h3>Keyboard shortcuts</h3><div class="keys">${k.map(([a, b]) => `<div>${a.split(' ').map((x) => ['/', 'or', 'then', '+'].includes(x) ? x : `<kbd>${x}</kbd>`).join(' ')}</div><div>${b}</div>`).join('')}</div>
+    <div class="row2"><button class="primary" id="done">Done</button></div>`, 'wide');
+  $('#done').onclick = closeModal;
+}
+
+/* ---------- video player: your Shorts, one after another, newest first ---------- */
+// Only items from your own subscriptions are queued. When a video ends we load the
+// next one ourselves, so YouTube's end screen and suggestions never get a turn.
+let plQueue = [], plIdx = 0, ytPlayer = null, ytReady = null;
+const unseenShorts = () => {
+  const subs = subById();
+  return [...items.values()].filter((i) => i.yt && i.yt.short && !i.read && subs[i.feed]).sort((a, b) => b.date - a.date);
+};
+function loadYT() {
+  if (ytReady) return ytReady;
+  ytReady = new Promise((res) => {
+    window.onYouTubeIframeAPIReady = res;
+    const s = document.createElement('script');
+    s.src = 'https://www.youtube.com/iframe_api';
+    document.head.appendChild(s);
+  });
+  return ytReady;
+}
+function openShorts() {
+  const q = unseenShorts();
+  if (!q.length) return toast('No new Shorts');
+  startPlayer(q, 0);
+}
+function playFrom(it) {
+  if (!it || !it.yt) return;
+  if (!it.yt.short) return startPlayer([it], 0);
+  const q = unseenShorts().filter((i) => i.id !== it.id && i.date <= it.date);
+  startPlayer([it, ...q], 0);
+}
+async function startPlayer(queue, idx) {
+  plQueue = queue; plIdx = idx;
+  $('#player').classList.add('on');
+  await loadYT();
+  if (!ytPlayer) {
+    ytPlayer = await new Promise((res) => {
+      const p = new YT.Player('ytFrame', {
+        playerVars: { autoplay: 1, rel: 0, playsinline: 1 },
+        events: {
+          onReady: () => res(p),
+          onStateChange: (e) => {
+            if (e.data === YT.PlayerState.PLAYING) { const it = plQueue[plIdx]; if (it) setRead(it, true, true); }
+            if (e.data === YT.PlayerState.ENDED) plStep(1);
+          },
+        },
+      });
+    });
+  }
+  plShow();
+}
+function plShow() {
+  const it = plQueue[plIdx];
+  const box = $('#player');
+  if (!it) {
+    ytPlayer?.stopVideo();
+    $('#plTitle').textContent = "That's all your new Shorts";
+    $('#plSrc').textContent = ''; $('#plN').textContent = '';
+    return;
+  }
+  box.classList.toggle('wide', !it.yt.short);
+  const s = subById()[it.feed];
+  $('#plTitle').textContent = it.title;
+  $('#plSrc').textContent = (s ? s.title.replace(/: Shorts$/, '') : '') + ' · ' + fmtDate(it.date);
+  $('#plN').textContent = plQueue.length > 1 ? `${plIdx + 1} of ${plQueue.length}` : '';
+  ytPlayer.loadVideoById(it.yt.id);
+}
+function plStep(d) {
+  const n = plIdx + d;
+  if (n < 0) return;
+  if (n >= plQueue.length) { plIdx = plQueue.length; return plShow(); }
+  plIdx = n; plShow();
+}
+function closePlayer() {
+  ytPlayer?.stopVideo();
+  $('#player').classList.remove('on');
+  renderNav();
+  renderItems({ keepScroll: true });
+}
+// a click inside the video moves keyboard focus into YouTube's frame; hand it back so j/k/Esc keep working
+addEventListener('blur', () => setTimeout(() => {
+  if ($('#player').classList.contains('on') && document.activeElement?.tagName === 'IFRAME') document.activeElement.blur();
+}, 0));
+$('#shortsBtn').onclick = openShorts;
+$('#plNext').onclick = () => plStep(1);
+$('#plPrev').onclick = () => plStep(-1);
+$('#plClose').onclick = closePlayer;
+function renderShortsBtn() {
+  const n = unseenShorts().length;
+  const b = $('#shortsBtn');
+  b.textContent = n ? `Shorts ${n}` : 'Shorts';
+  b.classList.toggle('has', !!n);
+}
+
+/* ---------- toast ---------- */
+let toastT;
+function toast(text, actionLabel, action) {
+  const t = $('#toast');
+  t.innerHTML = `<span>${esc(text)}</span>${actionLabel ? `<button>${esc(actionLabel)}</button>` : ''}`;
+  t.style.display = 'flex';
+  if (actionLabel) t.querySelector('button').onclick = () => { t.style.display = 'none'; action(); };
+  clearTimeout(toastT);
+  toastT = setTimeout(() => (t.style.display = 'none'), actionLabel ? 6000 : 2200);
+}
+
+/* ---------- keyboard ---------- */
+let gPending = 0;
+document.addEventListener('keydown', (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  const inField = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
+  if ($('#player').classList.contains('on')) {
+    const pk = { Escape: closePlayer, j: () => plStep(1), ArrowDown: () => plStep(1), k: () => plStep(-1), ArrowUp: () => plStep(-1),
+      ' ': () => ytPlayer && (ytPlayer.getPlayerState() === YT.PlayerState.PLAYING ? ytPlayer.pauseVideo() : ytPlayer.playVideo()),
+      s: () => toggleStar(plQueue[plIdx]) };
+    if (pk[e.key]) { e.preventDefault(); pk[e.key](); }
+    return;
+  }
+  if (e.key === 'Escape') {
+    if (document.querySelector('.modal-bg')) return closeModal();
+    if (inField) return e.target.blur();
+    return;
+  }
+  if (inField || document.querySelector('.modal-bg')) return;
+  const it = items.get(curId);
+  const k = e.key;
+  if (Date.now() - gPending < 1200) {
+    gPending = 0;
+    if (k === 'a') return select('all');
+    if (k === 's') return select('starred');
+  }
+  const map = {
+    j: () => move(1, true), k: () => move(-1, true),
+    n: () => move(1, false), p: () => move(-1, false),
+    o: toggleOpen, Enter: toggleOpen,
+    s: () => toggleStar(it), m: () => it && setRead(it, !it.read, false),
+    v: () => openOriginal(it), S: () => share(it), e: () => email(it),
+    A: markAllRead, J: () => nextSub(1, false), K: () => nextSub(-1, false),
+    1: () => setView('expanded'), 2: () => setView('list'),
+    r: () => { toast('Refreshing…'); refreshAll(); }, a: addModal, y: openShorts,
+    '/': () => $('#search').focus(), '?': helpModal,
+    g: () => { gPending = Date.now(); },
+  };
+  if (k === ' ') {
+    const sc = $('#scroll');
+    if (sc.scrollTop + sc.clientHeight >= sc.scrollHeight - 4) { e.preventDefault(); nextSub(1, true); }
+    return;
+  }
+  if (map[k]) { e.preventDefault(); map[k](); }
+});
+
+/* ---------- start ---------- */
+(async function start() {
+  try { db = await openDB(); (await idbAll()).forEach((i) => items.set(i.id, i)); }
+  catch (e) { console.warn('IndexedDB unavailable, items will not persist', e); }
+  folders();
+  if (state.ui.sel.startsWith('feed:') && !subById()[state.ui.sel.slice(5)]) state.ui.sel = 'all';
+  save();
+  renderNav();
+  renderItems();
+  await refreshAll();
+  setInterval(refreshAll, 30 * 60 * 1000);
+})();
+</script>
+</body>
+</html>
