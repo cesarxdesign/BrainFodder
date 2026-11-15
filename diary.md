@@ -35,3 +35,6 @@
 - Premium: storing his Google login is not possible and a sign-in token would not remove ads; ads in the player depend on being signed in to youtube.com in the same browser. Chrome allows that, Safari may not
 - Hosting stays Vercel: a web page can't fetch other sites' feeds, so the feed fetcher needs a server, which GitHub Pages can't run. Each deploy is well under 1 MB
 - A native Mac app was considered and dropped the same evening: Cesar wants a live page
+- Live test on Vercel (brainfodder.vercel.app), all 50 feeds through the deployed API:
+  - NASASpaceflight and Finextra answered from the Mac but refuse Vercel's servers (403). Both now come through a Google News search for their own site, the same way as ATP and WTA
+  - Simon Willison, Maggie Appleton, Dan Luu and Craig Mod failed with "Entity expansion limit exceeded". The XML parser counts every &lt; and &amp; in a feed and stopped at 1000; long feeds with escaped HTML have more. The cap is now 2 million, with the guards against booby-trapped feeds (DOCTYPE entities) kept

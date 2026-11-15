@@ -67,7 +67,9 @@ const parser = new XMLParser({
   ignoreAttributes: false,
   attributeNamePrefix: '@_',
   textNodeName: '#text',
-  processEntities: true,
+  // Feeds escape their HTML, so a normal article has thousands of &lt; &gt; &amp;.
+  // The default cap of 1000 rejected real feeds; keep the guards on DOCTYPE entities.
+  processEntities: { maxTotalExpansions: 2000000, maxEntitySize: 10000, maxExpansionDepth: 10, maxExpandedLength: 100000, maxEntityCount: 1000 },
   htmlEntities: true,
   trimValues: true,
   isArray: (name) => ['item', 'entry', 'link'].includes(name),
