@@ -222,7 +222,6 @@ const DEFAULT_SUBS = [
   ['Misc', 'Quanta Magazine', 'https://www.quantamagazine.org/feed/'],
   ['Misc', 'Construction Physics', 'https://www.construction-physics.com/feed'],
   ['Misc', 'Maggie Appleton', 'https://maggieappleton.com/rss.xml'],
-  ['Misc', 'Dan Luu', 'https://danluu.com/atom.xml'],
   ['Misc', 'Craig Mod', 'https://craigmod.com/index.xml'],
   ['Misc', 'Fix the News', 'https://substack.fixthenews.com/feed'],
   ['Misc', 'Veritasium', 'https://www.youtube.com/feeds/videos.xml?playlist_id=UULFHnyfMqiRRG1u-2MsSQLbXA'],
@@ -277,12 +276,15 @@ function loadState() {
         }
         s.ubitennis = true;
       }
+      // Dan Luu's feed is 6.6 MB and slowed every Fetch; Cesar removed it
+      if (!s.noDanLuu) { s.subs = s.subs.filter((x) => !/danluu\.com/.test(x.feedUrl || x.url || '')); s.noDanLuu = true; }
       return s;
     }
   } catch (_) {}
   return {
     folders: [...DEFAULT_FOLDERS],
     ubitennis: true,
+    noDanLuu: true,
     subs: DEFAULT_SUBS.map(([folder, title, url]) => ({ id: uid(), title, url, feedUrl: null, siteUrl: url, folder })),
     ui: { sel: 'all', view: 'expanded', sort: 'oldest', oldestDefault: true, showAll: false, collapsed: {} },
   };
