@@ -347,7 +347,7 @@ WALL_RE = re.compile(r'subscribe (now )?to (continue|read|keep reading|unlock)|s
                      r'this (article|story|post) is for (paid )?subscribers|already a subscriber\?|sign in to (continue|keep) reading|'
                      r'log in to (continue|keep) reading|unlock (this|the full) (article|story)', re.I)
 BOILER_RE = re.compile(r'cookie|newsletter|sign up|subscribe|advertis|all rights reserved|follow us|share this|read more:|related:', re.I)
-DROP_PAYWALLED = False     # off until Cesar agrees the publisher list and the page check
+DROP_PAYWALLED = True      # rules agreed by Cesar 2026-11-16
 EXPAND_DAYS = 7
 SHORT_CHARS = 600          # an item with less text than this gets its full article fetched
 ARTICLE_CACHE = {}         # link -> plain text, reused when writing stories
