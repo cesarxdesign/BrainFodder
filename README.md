@@ -11,7 +11,7 @@ A Google Reader style RSS reader for the Mac browser. Started 2026-11-15.
 - Star to keep, Share (Mac share sheet, or copies the link), Email
 - Add any website or feed address; it finds the feed on its own. YouTube channel pages work too
 - OPML import and export in Settings
-- Nothing fetches on its own: the Fetch button (or r) fetches every feed and groups the same news from several sources into one story card (headline, short summary, the source that adds most, every source listed). It works only on Cesar's Mac; anywhere else the button does nothing
+- Opening or reloading the page fetches once, as does the Fetch button (or r): it fetches every feed and groups the same news from several sources into one story card (headline, short summary, the source that adds most, every source listed). It works only on Cesar's Mac; anywhere else nothing is fetched and the load stays quiet
 - Shorts: y plays your unseen Shorts, newest first; the next starts by itself
 
 ## Data

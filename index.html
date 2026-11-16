@@ -436,7 +436,7 @@ function setFetchLabel(text) {
 
 // One press: the helper fetches every feed, then groups the same news from different
 // sources with Haiku. Results stream back line by line, so feeds fill in as they arrive.
-async function refreshAll() {
+async function refreshAll(auto) {
   if (refreshing) return;
   refreshing = true;
   setFetchLabel('Fetching…');
@@ -492,7 +492,8 @@ async function refreshAll() {
       }
     }
   } catch (e) {
-    toast(e.message);
+    // on load away from the owner's Mac there's no helper: stay quiet
+    if (!(auto === true && e.message === NO_HELPER)) toast(e.message);
   } finally {
     loading.clear();
     prune();
@@ -1415,7 +1416,8 @@ document.addEventListener('keydown', (e) => {
   save();
   renderNav();
   renderItems();
-  // nothing fetches on its own: only the Fetch button (r), on the owner's Mac
+  // every load or reload fetches once, as does the Fetch button (r); only on the owner's Mac
+  refreshAll(true);
 })();
 </script>
 </body>

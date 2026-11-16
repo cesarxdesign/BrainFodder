@@ -73,3 +73,4 @@
 - Old pages that Google News searches keep returning (e.g. 2019 WTA player profiles) arrive unread on later Fetches and sit on top with Oldest first; Cesar's call: leave them
 - Oldest first is the default (Cesar's call); existing installs switched over once, and the switch shows Oldest first on the left
 - ATP Tour and WTA removed, Ubitennis added in their place (Cesar's call): neither site has a feed of its own, and their Google News searches returned site pages (draws, head-to-heads, Stats Centre pages, player profiles, schedules) mixed with news; limiting the search to news addresses or to recent days didn't stop it. Existing installs switch over by themselves; the pages go with the two subscriptions
+- Every page load or reload now runs one Fetch, the same as pressing the button (Cesar's call, 2026-11-16). Still no timer: the helper starts with that request and quits when it's done. Away from his Mac the load-time fetch fails quietly; the button still says why
