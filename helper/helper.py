@@ -267,7 +267,11 @@ def parse(data, feed_url):
             date = text_of(child(i, 'pubDate')) or text_of(child(i, 'date')) or text_of(child(i, 'published')) or text_of(child(i, 'updated'))
             content = text_of(child(i, 'encoded')) or text_of(child(i, 'description'))
             author = text_of(child(i, 'creator')) or text_of(child(i, 'author'))
-            items.append(make_item(guid, text_of(child(i, 'title')), link, author, date, content, site or feed_url))
+            it = make_item(guid, text_of(child(i, 'title')), link, author, date, content, site or feed_url)
+            src = child(i, 'source')   # Google News names the real publisher here
+            if src is not None and src.get('url'):
+                it['publisher'] = {'name': text_of(src), 'url': src.get('url')}
+            items.append(it)
         return {'title': plain(text_of(child(ch, 'title'))), 'siteUrl': site, 'items': items}
     if kind == 'feed':
         site = absu(atom_link(root), feed_url)
@@ -332,8 +336,89 @@ Write in British English. No em dashes."""
 STORY_SCHEMA = {'type': 'object', 'properties': {'headline': {'type': 'string'}, 'summary': {'type': 'string'}, 'pick': {'type': 'string'}, 'why': {'type': 'string'}}, 'required': ['headline', 'summary', 'pick', 'why']}
 
 
+# ---------------------------------------------------------------- full articles and paywalls
+
+# Hard paywalls: their articles can't be read in BrainFodder or online without paying, so they are dropped
+PAYWALLED = ('nytimes.com', 'theathletic.com', 'wsj.com', 'ft.com', 'bloomberg.com', 'thetimes.co.uk', 'thetimes.com',
+             'telegraph.co.uk', 'economist.com', 'washingtonpost.com', 'businessinsider.com', 'barrons.com',
+             'newyorker.com', 'theinformation.com', 'latimes.com', 'bostonglobe.com', 'theaustralian.com.au',
+             'spectator.co.uk', 'foreignaffairs.com', 'hbr.org', 'stratechery.com', 'puck.news', 'seekingalpha.com')
+WALL_RE = re.compile(r'subscribe (now )?to (continue|read|keep reading|unlock)|subscribers? only|for (paid )?subscribers only|'
+                     r'this (article|story|post) is for (paid )?subscribers|already a subscriber\?|sign in to (continue|keep) reading|'
+                     r'log in to (continue|keep) reading|unlock (this|the full) (article|story)', re.I)
+BOILER_RE = re.compile(r'cookie|newsletter|sign up|subscribe|advertis|all rights reserved|follow us|share this|read more:|related:', re.I)
+EXPAND_DAYS = 7
+SHORT_CHARS = 600          # an item with less text than this gets its full article fetched
+ARTICLE_CACHE = {}         # link -> plain text, reused when writing stories
+
+
+def host_of(u):
+    h = urllib.parse.urlsplit(u or '').netloc.lower()
+    return h[4:] if h.startswith('www.') else h
+
+
+def paywalled_host(u):
+    h = host_of(u)
+    return any(h == d or h.endswith('.' + d) for d in PAYWALLED)
+
+
+def item_paywalled(it):
+    pub = (it.get('publisher') or {}).get('url')
+    return paywalled_host(it.get('link')) or (pub and paywalled_host(pub))
+
+
+def inline(h, base):
+    # keep links (href only) and simple emphasis; everything else inside a paragraph goes
+    h = re.sub(r'<a\b[^>]*?href=["\']([^"\']+)["\'][^>]*>',
+               lambda m: '<a href="%s">' % html.escape(absu(html.unescape(m.group(1)), base), quote=True), h, flags=re.I)
+    return re.sub(r'<(?!/?(?:a|em|strong|b|i|code|br)\b)[^>]*>', '', h, flags=re.I)
+
+
+def extract(link):
+    """The readable article at link: (html or None, word count, behind a paywall?)."""
+    data, final = get(link, accept='text/html,application/xhtml+xml;q=0.9,*/*;q=0.5')
+    page = re.sub(r'<!--.*?-->', '', as_text(data), flags=re.S)
+    # the container with the most paragraph text: an <article>, <main>, or the whole body
+    # (some sites use <article> only for small cards around the real story)
+    pwords = lambda h: sum(len(plain(x).split()) for x in re.findall(r'<p\b[^>]*>(.*?)</p>', h, re.S | re.I))
+    cands = re.findall(r'<article\b.*?</article>', page, re.S | re.I) + re.findall(r'<main\b.*?</main>', page, re.S | re.I)
+    best = max(cands, key=pwords) if cands else ''
+    if not best or pwords(best) < 150:
+        m = re.search(r'<body\b.*?</body>', page, re.S | re.I)
+        best = m.group(0) if m else page
+    body = best
+    body = re.sub(r'<(script|style|noscript|svg|nav|header|footer|aside|form|iframe|button|template)\b.*?</\1>', ' ', body, flags=re.S | re.I)
+    out, seen, words, imgs = [], set(), 0, 0
+    for m in re.finditer(r'<(p|h2|h3|h4|blockquote|li|figcaption|pre)\b[^>]*>(.*?)</\1>|<img\b[^>]*>', body, re.S | re.I):
+        if m.group(1):
+            tag, inner = m.group(1).lower(), m.group(2)
+            text = plain(inner)
+            least = 3 if tag[0] == 'h' else 15 if tag in ('li', 'figcaption') else 25
+            if len(text) < least or text in seen or (len(text) < 220 and BOILER_RE.search(text)):
+                continue
+            seen.add(text)
+            out.append('<%s>%s</%s>' % (tag, inline(inner, final), tag))
+            words += len(text.split())
+            if words > 8000:
+                break
+        elif imgs < 6:
+            tag = m.group(0)
+            src = (re.search(r'(?:data-src|data-lazy-src|src)=["\']([^"\']+)["\']', tag, re.I) or [None, ''])[1]
+            if not src or src.startswith('data:') or re.search(r'logo|icon|avatar|sprite|pixel|spacer|badge|\.svg', src, re.I):
+                continue
+            out.append('<p><img src="%s" alt=""></p>' % html.escape(absu(html.unescape(src), final), quote=True))
+            imgs += 1
+    walled = words < 150 and bool(WALL_RE.search(page))
+    if words >= 150:
+        ARTICLE_CACHE[link] = ' '.join(plain(x) for x in out)
+    return ('\n'.join(out) if words >= 150 else None), words, walled
+
+
 def article_text(link, snippet):
     host = urllib.parse.urlsplit(link).netloc
+    if link in ARTICLE_CACHE:
+        w = ARTICLE_CACHE[link].split()
+        return ' '.join(w[:ARTICLE_WORDS]), True
     if not link or host.endswith('news.google.com'):
         return snippet or '', False
     try:
@@ -368,14 +453,57 @@ def run(job, emit):
         except Exception as e:
             return s, None, str(e) or 'Could not load feed'
 
+    dropped = []
     with cf.ThreadPoolExecutor(10) as ex:
         for s, data, err in ex.map(one, subs):
             if err:
                 emit({'type': 'feedError', 'id': s['id'], 'error': err})
-            else:
-                fetched[s['id']] = data
-                emit({'type': 'feed', 'id': s['id'], 'data': data})
-    log('fetched', len(fetched), 'of', len(subs), 'feeds in %.1fs' % (time.time() - t0))
+                continue
+            # paywalled publishers never reach the page; ones it already has get removed
+            keep = []
+            for it in data['items']:
+                (dropped.append(s['id'] + '|' + it['guid']) if item_paywalled(it) else keep.append(it))
+            data['items'] = keep
+            fetched[s['id']] = data
+            emit({'type': 'feed', 'id': s['id'], 'data': data})
+    if dropped:
+        emit({'type': 'dropped', 'ids': dropped})
+    log('fetched', len(fetched), 'of', len(subs), 'feeds in %.1fs; %d paywalled items dropped' % (time.time() - t0, len(dropped)))
+
+    # items that arrive as a headline or a few lines get their full article, so they read in place
+    have = set(job.get('ids') or [])
+    want = set(job.get('expand') or [])
+    recent_cut = datetime.now(timezone.utc) - timedelta(days=EXPAND_DAYS)
+    todo = []
+    for sid, data in fetched.items():
+        for it in data['items']:
+            iid = sid + '|' + it['guid']
+            if it.get('yt') or 'news.google.com' in it['link'] or len(plain(it['content'])) >= SHORT_CHARS:
+                continue
+            if iid in have and iid not in want:
+                continue
+            if not it.get('date') or datetime.fromisoformat(it['date'].replace('Z', '+00:00')) < recent_cut:
+                continue
+            todo.append((iid, it['link']))
+    if todo:
+        emit({'type': 'progress', 'text': 'Reading %d full articles' % len(todo)})
+
+        def grab(t):
+            try:
+                return t[0], extract(t[1])
+            except Exception:
+                return t[0], (None, 0, False)
+        walled, full = [], 0
+        with cf.ThreadPoolExecutor(12) as ex:
+            for iid, (art, n, wall) in ex.map(grab, todo):
+                if wall:
+                    walled.append(iid)
+                else:
+                    full += bool(art)
+                    emit({'type': 'article', 'id': iid, 'html': art})
+        if walled:
+            emit({'type': 'dropped', 'ids': walled})
+        log('articles: %d read in full, %d behind a paywall, %d left as they were' % (full, len(walled), len(todo) - full - len(walled)))
 
     # what to group: news from the last GROUP_HOURS, no videos
     cutoff = datetime.now(timezone.utc) - timedelta(hours=GROUP_HOURS)

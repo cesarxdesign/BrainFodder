@@ -208,11 +208,11 @@ const DEFAULT_SUBS = [
   ['Tech', 'Daring Fireball', 'https://daringfireball.net/feeds/main'],
   ['Tech', 'Electrek: Tesla', 'https://electrek.co/guides/tesla/feed/'],
   ['Tech', 'Teslarati', 'https://www.teslarati.com/feed/'],
-  ['Tech', 'NASASpaceflight', 'https://news.google.com/rss/search?q=site:nasaspaceflight.com&hl=en-GB&gl=GB&ceid=GB:en'],
+  ['Tech', 'NASASpaceflight', 'https://www.nasaspaceflight.com/feed/'],
   ['Tech', 'Spaceflight Now', 'https://spaceflightnow.com/feed/'],
   ['Tech', 'Fintech Business Weekly', 'https://fintechbusinessweekly.substack.com/feed'],
   ['Tech', 'Net Interest', 'https://www.netinterest.co/feed'],
-  ['Tech', 'Finextra', 'https://news.google.com/rss/search?q=site:finextra.com&hl=en-GB&gl=GB&ceid=GB:en'],
+  ['Tech', 'Finextra', 'https://www.finextra.com/rss/headlines.aspx'],
   ['Tech', 'Fintech Blueprint', 'https://lex.substack.com/feed'],
   ['Misc', 'The Browser', 'https://thebrowser.com/free/rss/'],
   ['Misc', 'Kottke', 'https://feeds.kottke.org/main'],
@@ -258,6 +258,13 @@ function loadState() {
     if (s && Array.isArray(s.subs)) {
       s.folders = s.folders || [];
       s.ui = Object.assign({ sel: 'all', view: 'expanded', showAll: false, collapsed: {} }, s.ui);
+      // NASASpaceflight and Finextra went through Google News only while Vercel fetched feeds
+      // (both refuse Vercel); from the Mac their own feeds work and read in full
+      const direct = { 'https://news.google.com/rss/search?q=site:nasaspaceflight.com&hl=en-GB&gl=GB&ceid=GB:en': 'https://www.nasaspaceflight.com/feed/', 'https://news.google.com/rss/search?q=site:finextra.com&hl=en-GB&gl=GB&ceid=GB:en': 'https://www.finextra.com/rss/headlines.aspx' };
+      for (const sub of s.subs) {
+        const to = direct[sub.feedUrl] || direct[sub.url];
+        if (to) { sub.url = to; sub.feedUrl = to; sub.siteUrl = to; }
+      }
       return s;
     }
   } catch (_) {}
@@ -365,6 +372,7 @@ async function fetchFeed(url) {
   return j;
 }
 
+const normTitle = (t) => String(t || '').replace(/\s+-\s+[^-]+$/, '').toLowerCase().replace(/\W+/g, ' ').trim();
 function ingest(sub, j) {
   if (!sub.feedUrl) sub.feedUrl = j.feedUrl;
   if (j.siteUrl && (!sub.siteUrl || sub.siteUrl === sub.url)) sub.siteUrl = j.siteUrl;
@@ -372,16 +380,28 @@ function ingest(sub, j) {
   const first = !sub.fetched;
   sub.fetched = Date.now();
   const cutoff = Date.now() - FIRST_FETCH_UNREAD_DAYS * 864e5;
+  // this feed's items that its latest list no longer carries, by title: a new id with the same
+  // title is the same article (Google News titles end in " - Publisher", so that part is ignored)
+  const incoming = new Set((j.items || []).map((g) => sub.id + '|' + g.guid));
+  const byTitle = new Map();
+  for (const x of items.values()) if (x.feed === sub.id && !x.yt && !incoming.has(x.id)) byTitle.set(normTitle(x.title), x);
   let fresh = 0;
   for (const it of j.items || []) {
     const id = sub.id + '|' + it.guid;
-    const old = items.get(id);
+    let old = items.get(id);
+    if (!old) {
+      // same article under a new id (a feed that changed address): carry its state over
+      const twin = byTitle.get(normTitle(it.title));
+      if (twin) { old = twin; drop(twin.id); byTitle.delete(normTitle(it.title)); }
+    }
     // future dates (event listings) would sit on top for weeks, so cap them at now
     const date = it.date ? Math.min(Date.parse(it.date), old ? old.date : Date.now()) : old ? old.date : Date.now();
-    if (old && old.title === it.title && old.content === it.content && old.date === date && (!it.yt || old.yt)) continue;
+    const same = old && old.id === id;
+    if (same && old.title === it.title && (old.full || old.content === it.content) && old.date === date && (!it.yt || old.yt)) continue;
     const n = {
+      ...(old || {}),
       id, feed: sub.id, title: it.title, link: it.link, author: it.author, date,
-      content: it.content, snippet: it.snippet, yt: it.yt || null,
+      content: old && old.full ? old.content : it.content, snippet: it.snippet, yt: it.yt || null,
       read: old ? old.read : first && date < cutoff,
       starred: old ? old.starred : false,
       keepUnread: old ? old.keepUnread : false,
@@ -412,7 +432,10 @@ async function refreshAll() {
   const recent = [...items.values()].filter((i) => !i.yt && i.date >= cutoff && subs[i.feed])
     .map((i) => ({ id: i.id, feed: i.feed, title: i.title, snippet: (i.snippet || '').slice(0, 160), link: i.link, story: i.story || null, checked: !!i.checked }));
   const live = [...stories.values()].filter((s) => s.members.some((m) => items.has(m) && items.get(m).date >= cutoff));
-  const job = { subs: state.subs.map((s) => ({ id: s.id, url: s.feedUrl || s.url, title: s.title })), recent, stories: live };
+  const weekAgo = Date.now() - 7 * 864e5;
+  const expand = [...items.values()].filter((i) => !i.yt && !i.full && !i.tried && i.date >= weekAgo && !/news\.google\.com/.test(i.link || '')
+    && (i.content || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().length < 600).map((i) => i.id);
+  const job = { subs: state.subs.map((s) => ({ id: s.id, url: s.feedUrl || s.url, title: s.title })), recent, stories: live, ids: [...items.keys()], expand };
   let navT = 0;
   const nav = () => { if (Date.now() - navT > 300) { navT = Date.now(); renderNav(); } };
   try {
@@ -435,6 +458,8 @@ async function refreshAll() {
         const sub = m.id && subById()[m.id];
         if (m.type === 'feed' && sub) { ingest(sub, m.data); delete errors[sub.id]; loading.delete(sub.id); nav(); }
         else if (m.type === 'feedError' && sub) { errors[sub.id] = m.error; loading.delete(sub.id); nav(); }
+        else if (m.type === 'article') showFull(m.id, m.html);
+        else if (m.type === 'dropped') { for (const id of m.ids) { const it = items.get(id); if (it && !it.starred) { drop(id); elFor(id)?.remove(); } } nav(); }
         else if (m.type === 'progress') setFetchLabel(m.text.length > 46 ? m.text.slice(0, 44) + '…' : m.text);
         else if (m.type === 'done') {
           applyStories(m.stories || []);
@@ -456,6 +481,18 @@ async function refreshAll() {
     renderNav();
     renderItems({ keepScroll: true });
   }
+}
+
+// the full article, read on the owner's Mac, replaces a headline-only item's text in place
+function showFull(id, html) {
+  const it = items.get(id);
+  if (!it) return;
+  it.tried = true;
+  if (html) { it.content = html; it.full = true; }
+  touch(it);
+  const el = html && elFor(id);
+  const body = el && !el.classList.contains('story') && $('.body', el);
+  if (body) { delete body.dataset.done; fillBody(el, it); }
 }
 
 function applyStories(list) {
