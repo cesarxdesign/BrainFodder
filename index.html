@@ -114,6 +114,9 @@ main{display:flex;flex-direction:column;min-width:0;min-height:0}
 .actions button:hover,.actions a:hover,.actions label:hover{color:var(--text);text-decoration:none}
 .actions .star.on{color:var(--star)}
 .actions .on-star{color:var(--star)}
+.actions .vote{font-size:14px;filter:grayscale(1);opacity:.55}
+.actions .vote:hover{opacity:.9}
+.actions .vote.on{filter:none;opacity:1}
 .endmsg{padding:40px 20px;color:var(--muted);text-align:center}
 .endmsg button{color:var(--accent)}
 .hbtn:disabled{cursor:default;color:var(--accent)}
@@ -569,6 +572,26 @@ function toggleStar(it) {
   updateItemEl(it);
   renderNav();
 }
+// Thumbs up/down: a signal for keeping or dropping sources later; nothing acts on it yet.
+// Stored on the article (it.vote) and tallied per source (sub.up / sub.down in localStorage),
+// so the tally outlives the 90-day pruning of read articles. On a story card the vote
+// goes to the source it recommends reading (the card's lead).
+function vote(it, v) {
+  if (!it) return;
+  const sub = subById()[it.feed];
+  const old = it.vote || 0;
+  const next = old === v ? 0 : v;
+  if (sub) {
+    if (old === 1) sub.up = Math.max(0, (sub.up || 0) - 1);
+    if (old === -1) sub.down = Math.max(0, (sub.down || 0) - 1);
+    if (next === 1) sub.up = (sub.up || 0) + 1;
+    if (next === -1) sub.down = (sub.down || 0) + 1;
+    save();
+  }
+  it.vote = next;
+  touch(it);
+  updateItemEl(it);
+}
 let undoIds = null;
 function markAllRead() {
   const ids = vis.filter((i) => !unitRead(i)).flatMap((i) => membersOf(i).filter((m) => !m.read).map((m) => m.id));
@@ -716,6 +739,8 @@ function storyHTML(it, st) {
       }).join('')}</ul>
       <div class="actions">
         <button data-act="star" class="${it.starred ? 'on-star' : ''}">${it.starred ? '★ Starred' : '☆ Add star'}</button>
+        <button data-act="up" class="vote ${it.vote === 1 ? 'on' : ''}" title="Good source: keep it">👍</button>
+        <button data-act="down" class="vote ${it.vote === -1 ? 'on' : ''}" title="Weak source: a reason to drop it">👎</button>
         <button data-act="share">Share</button>
         <button data-act="email">Email</button>
         <label><input type="checkbox" data-act="keep" ${it.keepUnread ? 'checked' : ''}> Keep unread</label>
@@ -744,6 +769,8 @@ function itemHTML(it) {
       <div class="actions">
         ${it.yt ? `<button data-act="play">▶ Play${it.yt.short ? ' Shorts from here' : ''}</button>` : ''}
         <button data-act="star" class="${it.starred ? 'on-star' : ''}">${it.starred ? '★ Starred' : '☆ Add star'}</button>
+        <button data-act="up" class="vote ${it.vote === 1 ? 'on' : ''}" title="Good source: keep it">👍</button>
+        <button data-act="down" class="vote ${it.vote === -1 ? 'on' : ''}" title="Weak source: a reason to drop it">👎</button>
         <button data-act="share">Share</button>
         <button data-act="email">Email</button>
         <label><input type="checkbox" data-act="keep" ${it.keepUnread ? 'checked' : ''}> Keep unread</label>
@@ -829,6 +856,7 @@ function updateItemEl(it) {
     if (b.classList.contains('star')) { b.classList.toggle('on', it.starred); b.textContent = it.starred ? '★' : '☆'; }
     else { b.classList.toggle('on-star', it.starred); b.textContent = it.starred ? '★ Starred' : '☆ Add star'; }
   }
+  for (const b of el.querySelectorAll('.vote')) b.classList.toggle('on', it.vote === (b.dataset.act === 'up' ? 1 : -1));
   const k = el.querySelector('[data-act="keep"]');
   if (k) k.checked = !!it.keepUnread;
   const n = vis.filter((i) => !unitRead(i)).length;
@@ -925,6 +953,7 @@ $('#items').addEventListener('click', (e) => {
   const act = e.target.closest('[data-act]')?.dataset.act;
   if (act === 'star') { e.preventDefault(); return toggleStar(it); }
   if (act === 'play') return playFrom(it);
+  if (act === 'up' || act === 'down') return vote(it, act === 'up' ? 1 : -1);
   if (act === 'share') return share(it);
   if (act === 'email') return email(it);
   if (act === 'keep') { const on = e.target.checked; for (const m of membersOf(it)) { m.keepUnread = on; m.read = !on; touch(m); } updateItemEl(it); renderNav(); return; }
