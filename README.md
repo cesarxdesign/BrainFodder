@@ -6,7 +6,7 @@ A Google Reader style RSS reader for the Mac browser. Started 2026-11-15.
 
 - Folders on the left with bold unread counts: Tennis, Tech, Misc
 - Expanded view (full articles inline) or List view (headlines), toggle with 1 and 2
-- Keyboard first: j/k next and previous, s star, m read/unread, v open original, Shift+A mark all read, ? for the full list
+- Keyboard first: j/k (or . and ,) next and previous, s star, m read/unread, v open original, Shift+A mark all read, ? for the full list
 - Items are marked read as you move onto them or scroll past them; "Keep unread" holds one back
 - Star to keep, Share (Mac share sheet, or copies the link), Email
 - Add any website or feed address; it finds the feed on its own. YouTube channel pages work too

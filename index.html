@@ -1132,6 +1132,7 @@ function exportOPML() {
 function helpModal() {
   const k = [
     ['j / k', 'Next / previous item (opens it in List view)'],
+    ['. / ,', 'Next / previous item, same as j / k'],
     ['n / p', 'Move down / up without opening (List view)'],
     ['o or Enter', 'Open or close the item (List view)'],
     ['s', 'Star or unstar'],
@@ -1265,7 +1266,7 @@ document.addEventListener('keydown', (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
   const inField = /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName);
   if ($('#player').classList.contains('on')) {
-    const pk = { Escape: closePlayer, j: () => plStep(1), ArrowDown: () => plStep(1), k: () => plStep(-1), ArrowUp: () => plStep(-1),
+    const pk = { Escape: closePlayer, j: () => plStep(1), '.': () => plStep(1), ArrowDown: () => plStep(1), k: () => plStep(-1), ',': () => plStep(-1), ArrowUp: () => plStep(-1),
       ' ': () => ytPlayer && (ytPlayer.getPlayerState() === YT.PlayerState.PLAYING ? ytPlayer.pauseVideo() : ytPlayer.playVideo()),
       s: () => toggleStar(plQueue[plIdx]) };
     if (pk[e.key]) { e.preventDefault(); pk[e.key](); }
@@ -1285,7 +1286,7 @@ document.addEventListener('keydown', (e) => {
     if (k === 's') return select('starred');
   }
   const map = {
-    j: () => move(1, true), k: () => move(-1, true),
+    j: () => move(1, true), k: () => move(-1, true), '.': () => move(1, true), ',': () => move(-1, true),
     n: () => move(1, false), p: () => move(-1, false),
     o: toggleOpen, Enter: toggleOpen,
     s: () => toggleStar(it), m: () => it && setRead(it, !it.read, false),

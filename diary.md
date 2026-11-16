@@ -60,3 +60,4 @@
 - First Fetch from Pages: 9 new items, 2 more stories, 3 Haiku calls, about 37,000 tokens, 44 s. Most of those tokens are the grouping list, which resends every item of the last 48 hours
 - Trimmed what each Fetch sends Haiku (Cesar's go): new items go in full; existing stories and older single items go in only when they share 2 or more distinctive words with a new item, and older items as headline only. Story writing reads the full article for at most 5 sources, one per feed, 500 words each; the rest go in as headlines
 - After the trim: 6 new items, a 74-line list, 2 stories, 3 Haiku calls, about 12,000 tokens, 23 s (before: 9 new items, about 37,000 tokens). Grouping still joined new items to existing stories (a Marginal Revolution post joined the Starship story)
+- Cesar asked for . and , as next and previous too (same as j and k, also in the Shorts player)
