@@ -404,6 +404,9 @@ def extract(link):
             if whole and tag not in ('p', 'blockquote', 'pre'):
                 continue   # outside a real article container, lists and headings are menus
             text = plain(inner)
+            linked = ' '.join(plain(a) for a in re.findall(r'<a\b[^>]*>(.*?)</a>', inner, re.S | re.I))
+            if tag in ('li', 'h2', 'h3', 'h4') and len(linked) >= 0.7 * max(len(text), 1):
+                continue   # a list item or heading that is mostly a link: related stories, not the article
             least = 3 if tag[0] == 'h' else 15 if tag in ('li', 'figcaption') else 25
             if len(text) < least or text in seen or (len(text) < 220 and BOILER_RE.search(text)):
                 continue
@@ -420,6 +423,9 @@ def extract(link):
                 continue
             out.append('<p><img src="%s" alt=""></p>' % html.escape(absu(html.unescape(src), final), quote=True))
             imgs += 1
+    # anything after the last paragraph of running text (related cards, their pictures) is not the article
+    last = max((i for i, x in enumerate(out) if x.startswith(('<p>', '<blockquote>', '<pre>')) and '<img' not in x), default=-1)
+    out = out[:last + 1]
     walled = DROP_PAYWALLED and words < 150 and bool(WALL_RE.search(page))
     if words >= 150:
         ARTICLE_CACHE[link] = ' '.join(plain(x) for x in out)
