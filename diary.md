@@ -71,3 +71,4 @@
 - Full articles now stop at the last paragraph of running text, and list items or headings that are mostly a link are skipped, so related-story cards and their pictures don't follow the article. Articles read earlier are read again once
 - Sort switch in the top bar (Cesar's ask): Newest first (as before) or Oldest first; one setting for every feed and folder, remembered in the browser. The backlog's "oldest-first per feed" item is done by it
 - Old pages that Google News searches keep returning (e.g. 2019 WTA player profiles) arrive unread on later Fetches and sit on top with Oldest first; Cesar's call: leave them
+- Oldest first is the default (Cesar's call); existing installs switched over once, and the switch shows Oldest first on the left
