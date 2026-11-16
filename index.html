@@ -1390,7 +1390,7 @@ document.addEventListener('keydown', (e) => {
   catch (e) { console.warn('IndexedDB unavailable, items will not persist', e); }
   // full articles read before menus were filtered out get read again on the next Fetch
   if ((state.fullRev || 1) < 2) {
-    for (const it of items.values()) if (it.full) { it.full = false; it.tried = false; touch(it); }
+    for (const it of items.values()) if (it.full) { it.full = false; it.tried = false; it.content = it.snippet || ""; touch(it); }
     state.fullRev = 2;
   }
   folders();
