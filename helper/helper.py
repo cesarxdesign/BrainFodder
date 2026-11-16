@@ -37,7 +37,14 @@ MAX_BYTES = 8 * 1024 * 1024
 MAX_ITEMS = 60
 FALLBACK_PATHS = ['/feed', '/rss', '/feed.xml', '/rss.xml', '/atom.xml', '/index.xml', '/feed/']
 GROUP_HOURS = 48          # only news this fresh is grouped
-ARTICLE_WORDS = 800       # per source, when choosing what to read further
+ARTICLE_WORDS = 500       # per source, when choosing what to read further
+FULL_TEXT_SOURCES = 5     # sources per story whose article is read; the rest go in as headlines
+STOP = set('''about after again against also among another back been before being best between both came come could does doing down during each even every first from front gets give goes going good great have having here into just keep last latest like live look made make many more most much must near never news next only open other over part plus says said same season should show since some still such take than that their them then there these they this those three through time today under until upon very want week what when where which while will with would year years your 2025 2026 2027'''.split())
+
+
+def words(text):
+    # distinctive words: names, places, products; common words dropped
+    return {w for w in re.findall(r"[a-z0-9][a-z0-9'-]{3,}", (text or '').lower()) if w not in STOP}
 HAIKU_PARALLEL = 4
 
 
@@ -391,19 +398,29 @@ def run(job, emit):
     if not new_ids:
         return {'stories': [], 'tokens': 0, 'calls': 0}
 
-    # one line per existing story, one per item not in a story
+    # Haiku only sees what could join something new: every new item in full, plus the
+    # existing stories and older single items that share 2 or more distinctive words with a new item
+    new_words = [words(pool[i]['title'] + ' ' + (pool[i].get('snippet') or '')) for i in new_ids]
+    related = lambda text: any(len(words(text) & w) >= 2 for w in new_words)
     lines, keymap = [], {}
     for sid, s in stories.items():
-        if any(pool.get(m) for m in s.get('members', [])):
+        if any(pool.get(m) for m in s.get('members', [])) and related(s['headline'] + ' ' + s.get('summary', '')):
             k = 'S%d' % (len(keymap) + 1)
             keymap[k] = ('story', sid)
             lines.append('%s | %s' % (k, s['headline']))
     for iid, v in pool.items():
         if v.get('story') and v['story'] in stories:
             continue
+        if v.get('new'):
+            line = '%s | %s | %s' % (titles.get(v['feed'], ''), v['title'], (v.get('snippet') or '')[:120])
+        elif related(v['title'] + ' ' + (v.get('snippet') or '')):
+            line = '%s | %s' % (titles.get(v['feed'], ''), v['title'])
+        else:
+            continue
         k = 'I%d' % (len(keymap) + 1)
         keymap[k] = ('item', iid)
-        lines.append('%s | %s | %s | %s' % (k, titles.get(v['feed'], ''), v['title'], (v.get('snippet') or '')[:160]))
+        lines.append('%s | %s' % (k, line))
+    log('grouping list: %d lines for %d new items' % (len(lines), len(new_ids)))
     tokens = calls = 0
     try:
         out, t = haiku(GROUP_SYSTEM, '\n'.join(lines), GROUP_SCHEMA)
@@ -439,9 +456,14 @@ def run(job, emit):
 
     def write(st):
         mem = [pool[m] for m in st['members'] if m in pool]
+        # read the full article for one source per feed, up to FULL_TEXT_SOURCES; the rest as headlines
+        readers, feeds = set(), set()
+        for m in mem:
+            if len(readers) < FULL_TEXT_SOURCES and m['feed'] not in feeds and 'news.google.com' not in m['link']:
+                readers.add(m['id']); feeds.add(m['feed'])
         parts, keys = [], {}
         for j, m in enumerate(mem, 1):
-            txt, full = article_text(m['link'], m.get('snippet'))
+            txt, full = article_text(m['link'], m.get('snippet')) if m['id'] in readers else (m.get('snippet') or '', False)
             keys['A%d' % j] = m['id']
             parts.append('A%d | %s | %s\n%s%s' % (j, titles.get(m['feed'], ''), m['title'], txt, '' if full else '\n(headline and snippet only)'))
         res, t = haiku(STORY_SYSTEM, '\n\n'.join(parts), STORY_SCHEMA)
