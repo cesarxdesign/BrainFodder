@@ -1416,8 +1416,10 @@ document.addEventListener('keydown', (e) => {
   save();
   renderNav();
   renderItems();
-  // every load or reload fetches once, as does the Fetch button (r); only on the owner's Mac
-  refreshAll(true);
+  // opening the page fetches once, as does the Fetch button (r); a reload, back/forward or a
+  // tab Chrome put to sleep and woke doesn't. Only on the owner's Mac
+  const nav = performance.getEntriesByType('navigation')[0];
+  if ((!nav || nav.type === 'navigate') && !document.wasDiscarded) refreshAll(true);
 })();
 </script>
 </body>

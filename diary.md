@@ -76,3 +76,4 @@
 - Every page load or reload now runs one Fetch, the same as pressing the button (Cesar's call, 2026-11-16). Still no timer: the helper starts with that request and quits when it's done. Away from his Mac the load-time fetch fails quietly; the button still says why
 - Load-time fetch tested live: one load = one run (2 new items, 2,576 tokens). A first test made 3 runs in a row because my test script hung the tab, not because of the page
 - Dan Luu's feed is 6.6 MB (every essay in full) and downloads slowly, so since 17:30 on 2026-11-16 it has held each Fetch for 17-205 s and often times out; open question for Cesar
+- Cesar's correction: fetch when the page is opened, not on every reload (reloads happen a lot). A reload, back/forward, or a tab Chrome slept and woke doesn't fetch; the Fetch button (r) still does
