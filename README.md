@@ -18,7 +18,7 @@ A Google Reader style RSS reader for the Mac browser. Started 2026-11-15.
 
 - Subscriptions, folders and view settings: browser localStorage, key `brainfodder.v1`
 - Articles with read and star state: browser IndexedDB, database `brainfodder`
-- Everything lives in the one browser it is used in; nothing syncs. Export OPML to move feeds
+- Everything lives in the one browser and the one web address it is used at; nothing syncs. Export OPML to move feeds
 - Read items older than 90 days are pruned; starred items are kept forever
 
 ## Files
@@ -26,12 +26,11 @@ A Google Reader style RSS reader for the Mac browser. Started 2026-11-15.
 - `index.html` the whole app (code)
 - `helper/helper.py` runs on Cesar's Mac only: fetches feeds (browsers can't, because of CORS) and groups repeated news with Claude Haiku through Claude Code on his Max plan (code)
 - `helper/com.cesarxdesign.brainfodder.plist` and `helper/install.sh` set macOS to start the helper when Fetch is pressed; it quits when that fetch is answered. Log: ~/Library/Logs/BrainFodder/helper.log
-- `api/feed.js`, `vercel.json` the old Vercel feed fetcher, no longer used by the page
 - `diary.md` every decision and fact about the project
 - `BACKLOG.md` what is next
 
 ## Hosting
 
-https://brainfodder.vercel.app, deployed from GitHub `cesarxdesign/BrainFodder` (public) on every push to main. No build step. Fetching happens on Cesar's Mac, not on Vercel.
+https://cesarxdesign.github.io/BrainFodder/, GitHub Pages from `main` of `cesarxdesign/BrainFodder` (public). No build step, no server: fetching happens on Cesar's Mac.
 
 On a new Mac: run `helper/install.sh`, be signed in to Claude Code, and allow Chrome's "access other apps and services on this device" prompt on the first Fetch.

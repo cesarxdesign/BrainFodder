@@ -53,5 +53,8 @@
 - Fixed: a refused request (wrong website) left the helper running; it now quits after every request
 - Story card: one per story, read together, counted once in the sidebar
 - Lesson: the first version bumped the IndexedDB version to add a stories store; Chrome holds an upgrade until every open tab on the old version closes, so yesterday's open tab blocked the page. Stories now live in their own database, `brainfodder-stories`; the items database is never upgraded
-- api/feed.js on Vercel is no longer used by the page. Open: move the page to GitHub Pages and delete the Vercel project
+- api/feed.js on Vercel is no longer used by the page
 - First live press on Cesar's Chrome: Chrome asked once to let the site reach apps on this device (Local Network Access); after Allow, the helper fetched 50 feeds in 8 s, grouped 219 items into 22 stories with 23 Haiku calls (about 122,000 tokens, 89 s), and quit. Unread went from 717 to 674. That run sent every item of the last 48 hours, because none had been grouped yet; later presses only send new items
+- Moved to GitHub Pages (Cesar's call): https://cesarxdesign.github.io/BrainFodder/. api/feed.js, vercel.json and package files removed; the Vercel project `brainfodder` deleted, so Vercel again holds only cxd and stats. The helper no longer answers brainfodder.vercel.app (that address is free for anyone to take now)
+- Browser data belongs to one web address, so reading history, stars, stories and feeds were carried from the Vercel address to the Pages one through a one-off relay on the Mac: 1,477 items, 22 stories, same unread count. Chrome's local network permission was already granted for the new address
+- First Fetch from Pages: 9 new items, 2 more stories, 3 Haiku calls, about 37,000 tokens, 44 s. Most of those tokens are the grouping list, which resends every item of the last 48 hours

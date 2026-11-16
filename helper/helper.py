@@ -28,7 +28,7 @@ import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 
 PORT = 47823
-ALLOWED_ORIGINS = re.compile(r'^(https://brainfodder\.vercel\.app|https://cesarxdesign\.github\.io|http://(localhost|127\.0\.0\.1)(:\d+)?)$')
+ALLOWED_ORIGINS = re.compile(r'^(https://cesarxdesign\.github\.io|http://(localhost|127\.0\.0\.1)(:\d+)?)$')
 CLAUDE = os.path.expanduser('~/.local/bin/claude')
 WORKDIR = os.path.expanduser('~/Library/Application Support/BrainFodder/run')
 LOGDIR = os.path.expanduser('~/Library/Logs/BrainFodder')
