@@ -257,7 +257,7 @@ function loadState() {
     const s = JSON.parse(localStorage.getItem(LS));
     if (s && Array.isArray(s.subs)) {
       s.folders = s.folders || [];
-      s.ui = Object.assign({ sel: 'all', view: 'expanded', showAll: false, collapsed: {} }, s.ui);
+      s.ui = Object.assign({ sel: 'all', view: 'expanded', sort: 'newest', showAll: false, collapsed: {} }, s.ui);
       // NASASpaceflight and Finextra went through Google News only while Vercel fetched feeds
       // (both refuse Vercel); from the Mac their own feeds work and read in full
       const direct = { 'https://news.google.com/rss/search?q=site:nasaspaceflight.com&hl=en-GB&gl=GB&ceid=GB:en': 'https://www.nasaspaceflight.com/feed/', 'https://news.google.com/rss/search?q=site:finextra.com&hl=en-GB&gl=GB&ceid=GB:en': 'https://www.finextra.com/rss/headlines.aspx' };
@@ -271,7 +271,7 @@ function loadState() {
   return {
     folders: [...DEFAULT_FOLDERS],
     subs: DEFAULT_SUBS.map(([folder, title, url]) => ({ id: uid(), title, url, feedUrl: null, siteUrl: url, folder })),
-    ui: { sel: 'all', view: 'expanded', showAll: false, collapsed: {} },
+    ui: { sel: 'all', view: 'expanded', sort: 'newest', showAll: false, collapsed: {} },
   };
 }
 function save() { try { localStorage.setItem(LS, JSON.stringify(state)); } catch (_) {} }
@@ -580,7 +580,8 @@ function computeVis() {
     });
   }
   const d = new Map(arr.map((i) => [i.id, unitDate(i)]));
-  arr.sort((a, b) => d.get(b.id) - d.get(a.id));
+  const dir = state.ui.sort === 'oldest' ? -1 : 1;
+  arr.sort((a, b) => dir * (d.get(b.id) - d.get(a.id)));
   for (const i of arr) keep.add(i.id);
   return arr;
 }
@@ -752,6 +753,7 @@ function renderBar() {
     <h1>${lab.link ? `<a href="${esc(lab.link)}" target="_blank" rel="noopener">${esc(lab.title)} ↗</a>` : esc(lab.title)}</h1>
     ${isStar ? '' : `<div class="seg"><button data-show="new" class="${state.ui.showAll ? '' : 'on'}">${n} new</button><button data-show="all" class="${state.ui.showAll ? 'on' : ''}">All items</button></div>
     <button class="btn" id="markAll" title="Shift+A">Mark all as read</button>`}
+    <div class="seg"><button data-sort="newest" class="${state.ui.sort !== 'oldest' ? 'on' : ''}">Newest first</button><button data-sort="oldest" class="${state.ui.sort === 'oldest' ? 'on' : ''}">Oldest first</button></div>
     <div class="seg"><button data-view="expanded" class="${state.ui.view === 'expanded' ? 'on' : ''}" title="1">Expanded</button><button data-view="list" class="${state.ui.view === 'list' ? 'on' : ''}" title="2">List</button></div>
     <div class="sp"></div>
     ${query ? `<span class="note">Searching “${esc(query)}”</span>` : ''}
@@ -1011,6 +1013,8 @@ $('#items').addEventListener('click', (e) => {
 });
 
 $('#bar').addEventListener('click', (e) => {
+  const so = e.target.closest('[data-sort]')?.dataset.sort;
+  if (so) { state.ui.sort = so; keep = new Set(); curId = null; openId = null; save(); renderItems(); $('#scroll').scrollTop = 0; return; }
   const v = e.target.closest('[data-view]')?.dataset.view;
   if (v) return setView(v);
   const s = e.target.closest('[data-show]')?.dataset.show;
