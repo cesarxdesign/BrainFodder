@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.cesarxdesign.brainfodder</string>
+  <key>ProgramArguments</key>
+  <array><string>/usr/bin/python3</string><string>/Users/cgair/Claude/BrainFodder/helper/helper.py</string></array>
+  <!-- macOS holds the port; the helper only starts when the Fetch button connects, and quits when the job is answered -->
+  <key>Sockets</key>
+  <dict>
+    <key>Listener</key>
+    <dict>
+      <key>SockNodeName</key><string>127.0.0.1</string>
+      <key>SockServiceName</key><string>47823</string>
+      <key>SockType</key><string>stream</string>
+      <key>SockFamily</key><string>IPv4</string>
+    </dict>
+  </dict>
+  <key>StandardOutPath</key><string>/Users/cgair/Library/Logs/BrainFodder/helper.log</string>
+  <key>StandardErrorPath</key><string>/Users/cgair/Library/Logs/BrainFodder/helper.log</string>
+</dict>
+</plist>

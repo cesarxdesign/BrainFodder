@@ -116,6 +116,15 @@ main{display:flex;flex-direction:column;min-width:0;min-height:0}
 .actions .on-star{color:var(--star)}
 .endmsg{padding:40px 20px;color:var(--muted);text-align:center}
 .endmsg button{color:var(--accent)}
+.hbtn:disabled{cursor:default;color:var(--accent)}
+.story .nsrc{font-weight:600;color:var(--text)}
+.readmore{display:flex;gap:6px;align-items:baseline;flex-wrap:wrap;font-size:14px;margin:12px 0 0}
+.readmore img{width:14px;height:14px;border-radius:3px;align-self:center}
+.srcs{list-style:none;padding:10px 0 0;margin:12px 0 0;border-top:1px solid var(--line);font-size:12px;max-width:780px}
+.srcs li{display:flex;gap:6px;align-items:center;padding:2px 0;min-width:0}
+.srcs img{width:14px;height:14px;border-radius:3px;flex:none}
+.srcs .sn{color:var(--muted);flex:none}
+.srcs a{color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 
 .modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.35);display:flex;align-items:flex-start;justify-content:center;padding-top:12vh;z-index:20}
 .modal{background:var(--bg);border:1px solid var(--line);border-radius:12px;box-shadow:0 20px 60px rgba(0,0,0,.3);width:440px;max-width:92vw;padding:20px}
@@ -156,7 +165,7 @@ main{display:flex;flex-direction:column;min-width:0;min-height:0}
     <input id="search" type="search" placeholder="Search loaded items   ( / )" autocomplete="off">
     <div class="sp"></div>
     <button class="hbtn" id="shortsBtn" title="Play your new Shorts (y)">Shorts</button>
-    <button class="hbtn" id="refreshBtn" title="Refresh (r)">Refresh</button>
+    <button class="hbtn" id="refreshBtn" title="Fetch new items and group repeated news (r). Works only on the owner’s Mac">Fetch</button>
     <button class="hbtn" id="settingsBtn" title="Import, export, shortcuts">Settings</button>
     <button class="hbtn" id="helpBtn" title="Keyboard shortcuts (?)">?</button>
   </header>
@@ -266,35 +275,65 @@ const subById = () => Object.fromEntries(state.subs.map((s) => [s.id, s]));
 
 /* ---------- item store (IndexedDB) ---------- */
 const items = new Map();
+// stories: the same news from several sources, grouped by Haiku on the owner's Mac
+const stories = new Map();
 let db = null;
 function openDB() {
   return new Promise((res, rej) => {
-    const r = indexedDB.open('brainfodder', 1);
-    r.onupgradeneeded = () => r.result.createObjectStore('items', { keyPath: 'id' });
+    // v2 adds the stories store; items are untouched
+    const r = indexedDB.open('brainfodder', 2);
+    r.onupgradeneeded = () => {
+      const d = r.result;
+      if (!d.objectStoreNames.contains('items')) d.createObjectStore('items', { keyPath: 'id' });
+      if (!d.objectStoreNames.contains('stories')) d.createObjectStore('stories', { keyPath: 'id' });
+    };
     r.onsuccess = () => res(r.result);
     r.onerror = () => rej(r.error);
   });
 }
-function idbAll() {
+function idbAll(store = 'items') {
   return new Promise((res, rej) => {
-    const q = db.transaction('items').objectStore('items').getAll();
+    const q = db.transaction(store).objectStore(store).getAll();
     q.onsuccess = () => res(q.result);
     q.onerror = () => rej(q.error);
   });
 }
 const dirty = new Set();
 const gone = new Set();
+const storyDirty = new Set();
+const storyGone = new Set();
 let flushT = null;
-function touch(it) { dirty.add(it.id); clearTimeout(flushT); flushT = setTimeout(flush, 250); }
-function drop(id) { items.delete(id); gone.add(id); dirty.delete(id); clearTimeout(flushT); flushT = setTimeout(flush, 250); }
+const later = () => { clearTimeout(flushT); flushT = setTimeout(flush, 250); };
+function touch(it) { dirty.add(it.id); later(); }
+function drop(id) { items.delete(id); gone.add(id); dirty.delete(id); later(); }
+function touchStory(s) { storyDirty.add(s.id); later(); }
+function dropStory(id) { stories.delete(id); storyGone.add(id); storyDirty.delete(id); later(); }
 function flush() {
-  if (!db || (!dirty.size && !gone.size)) return;
-  const tx = db.transaction('items', 'readwrite');
+  if (!db || (!dirty.size && !gone.size && !storyDirty.size && !storyGone.size)) return;
+  const tx = db.transaction(['items', 'stories'], 'readwrite');
   const st = tx.objectStore('items');
   for (const id of dirty) { const it = items.get(id); if (it) st.put(it); }
   for (const id of gone) st.delete(id);
-  dirty.clear(); gone.clear();
+  const ss = tx.objectStore('stories');
+  for (const id of storyDirty) { const s = stories.get(id); if (s) ss.put(s); }
+  for (const id of storyGone) ss.delete(id);
+  dirty.clear(); gone.clear(); storyDirty.clear(); storyGone.clear();
 }
+
+/* a story stands in for all its items: one card, one read state */
+function storyOf(it) {
+  const s = it && it.story && stories.get(it.story);
+  if (!s) return null;
+  return s.members.filter((m) => items.has(m)).length >= 2 ? s : null;
+}
+function membersOf(it) {
+  const s = storyOf(it);
+  return s ? s.members.map((m) => items.get(m)).filter(Boolean) : [it];
+}
+function leadOf(s) { return items.get(s.pick) || s.members.map((m) => items.get(m)).find(Boolean); }
+const unitOf = (it) => { const s = storyOf(it); return s ? leadOf(s) : it; };
+const unitRead = (it) => membersOf(it).every((m) => m.read);
+const unitDate = (it) => Math.max(...membersOf(it).map((m) => m.date));
 addEventListener('beforeunload', flush);
 
 /* ---------- fetching ---------- */
@@ -302,8 +341,16 @@ const loading = new Set();
 const errors = {};
 let refreshing = false;
 
+// Fetching runs only through the helper on the owner's Mac (helper/helper.py), which
+// macOS starts when this page connects. Elsewhere nothing answers, so nothing is fetched.
+const HELPER = 'http://127.0.0.1:47823';
+const NO_HELPER = 'Fetching only works on the owner’s Mac';
+async function helper(path, body) {
+  try { return await fetch(HELPER + path, { method: 'POST', body: JSON.stringify(body) }); }
+  catch (_) { throw new Error(NO_HELPER); }
+}
 async function fetchFeed(url) {
-  const r = await fetch('/api/feed?url=' + encodeURIComponent(url));
+  const r = await helper('/feed', { url });
   let j = {};
   try { j = await r.json(); } catch (_) {}
   if (!r.ok) throw new Error(j.error || 'HTTP ' + r.status);
@@ -339,30 +386,82 @@ function ingest(sub, j) {
   return fresh;
 }
 
-async function refreshFeed(sub) {
-  loading.add(sub.id);
-  renderNav();
-  try {
-    ingest(sub, await fetchFeed(sub.feedUrl || sub.url));
-    delete errors[sub.id];
-  } catch (e) {
-    errors[sub.id] = e.message;
-  } finally {
-    loading.delete(sub.id);
-    save();
-  }
+const GROUP_HOURS = 48;
+function setFetchLabel(text) {
+  const b = $('#refreshBtn');
+  b.textContent = text || 'Fetch';
+  b.disabled = !!text;
 }
 
+// One press: the helper fetches every feed, then groups the same news from different
+// sources with Haiku. Results stream back line by line, so feeds fill in as they arrive.
 async function refreshAll() {
   if (refreshing) return;
   refreshing = true;
-  const queue = [...state.subs];
-  const worker = async () => { while (queue.length) { await refreshFeed(queue.shift()); renderNav(); } };
-  await Promise.all(Array.from({ length: 5 }, worker));
-  prune();
-  refreshing = false;
-  renderNav();
-  renderItems({ keepScroll: true });
+  setFetchLabel('Fetching…');
+  const subs = subById();
+  const cutoff = Date.now() - GROUP_HOURS * 3600e3;
+  const recent = [...items.values()].filter((i) => !i.yt && i.date >= cutoff && subs[i.feed])
+    .map((i) => ({ id: i.id, feed: i.feed, title: i.title, snippet: (i.snippet || '').slice(0, 160), link: i.link, story: i.story || null, checked: !!i.checked }));
+  const live = [...stories.values()].filter((s) => s.members.some((m) => items.has(m) && items.get(m).date >= cutoff));
+  const job = { subs: state.subs.map((s) => ({ id: s.id, url: s.feedUrl || s.url, title: s.title })), recent, stories: live };
+  let navT = 0;
+  const nav = () => { if (Date.now() - navT > 300) { navT = Date.now(); renderNav(); } };
+  try {
+    const r = await helper('/run', job);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    state.subs.forEach((s) => loading.add(s.id));
+    renderNav();
+    const reader = r.body.getReader();
+    const dec = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0) {
+        const line = buf.slice(0, nl); buf = buf.slice(nl + 1);
+        if (!line.trim()) continue;
+        const m = JSON.parse(line);
+        const sub = m.id && subById()[m.id];
+        if (m.type === 'feed' && sub) { ingest(sub, m.data); delete errors[sub.id]; loading.delete(sub.id); nav(); }
+        else if (m.type === 'feedError' && sub) { errors[sub.id] = m.error; loading.delete(sub.id); nav(); }
+        else if (m.type === 'progress') setFetchLabel(m.text.length > 46 ? m.text.slice(0, 44) + '…' : m.text);
+        else if (m.type === 'done') {
+          applyStories(m.stories || []);
+          // remember which items Haiku has looked at, so the next press only sends it what's new
+          if (!m.error) for (const i of items.values()) if (!i.yt && i.date >= cutoff && !i.checked) { i.checked = true; touch(i); }
+          const n = (m.stories || []).length;
+          toast(m.error ? `Feeds fetched; grouping failed: ${m.error}` : n ? `${n} stor${n > 1 ? 'ies' : 'y'} grouped from several sources` : 'Fetched; no repeated news');
+        }
+      }
+    }
+  } catch (e) {
+    toast(e.message);
+  } finally {
+    loading.clear();
+    prune();
+    save();
+    refreshing = false;
+    setFetchLabel('');
+    renderNav();
+    renderItems({ keepScroll: true });
+  }
+}
+
+function applyStories(list) {
+  for (const s of list) {
+    const old = stories.get(s.id);
+    stories.set(s.id, s);
+    touchStory(s);
+    for (const id of s.members) {
+      const it = items.get(id);
+      if (it && it.story !== s.id) { it.story = s.id; touch(it); }
+    }
+    // a story that gained a new source is news again
+    if (old && s.members.some((m) => !old.members.includes(m))) keep = new Set();
+  }
 }
 
 function prune() {
@@ -372,6 +471,7 @@ function prune() {
     if (it.starred) continue;
     if (!subs[it.feed] || (it.read && Math.max(it.date, it.seen) < old)) drop(it.id);
   }
+  for (const s of [...stories.values()]) if (!s.members.some((m) => items.has(m))) dropStory(s.id);
 }
 
 /* ---------- selection ---------- */
@@ -382,7 +482,19 @@ let vis = [];
 let rendered = 0;
 let query = '';
 
-function unread(pred) { let n = 0; for (const it of items.values()) if (!it.read && pred(it)) n++; return n; }
+// unread count in cards: a story counts once, wherever any of its sources match
+function unread(pred) {
+  const seen = new Set();
+  let n = 0;
+  for (const it of items.values()) {
+    if (it.read || !pred(it)) continue;
+    const u = unitOf(it);
+    if (seen.has(u.id)) continue;
+    seen.add(u.id);
+    n++;
+  }
+  return n;
+}
 
 function selLabel(sel) {
   if (sel === 'all') return { title: 'All items' };
@@ -402,12 +514,20 @@ function computeVis() {
     arr = arr.filter((i) => subs[i.feed] && subs[i.feed].folder === f);
   } else if (sel.startsWith('feed:')) arr = arr.filter((i) => i.feed === sel.slice(5));
   else arr = arr.filter((i) => subs[i.feed]);
-  if (sel !== 'starred' && !state.ui.showAll && !query) arr = arr.filter((i) => !i.read || keep.has(i.id));
+  // the same news from several sources shows once, as its story
+  const units = new Map();
+  for (const i of arr) { const u = unitOf(i); if (u && !units.has(u.id)) units.set(u.id, u); }
+  arr = [...units.values()];
+  if (sel !== 'starred' && !state.ui.showAll && !query) arr = arr.filter((i) => !unitRead(i) || keep.has(i.id));
   if (query) {
     const q = query.toLowerCase();
-    arr = arr.filter((i) => (i.title + ' ' + (i.snippet || '') + ' ' + (i.author || '')).toLowerCase().includes(q));
+    arr = arr.filter((i) => {
+      const s = storyOf(i);
+      return ((s ? s.headline + ' ' + s.summary + ' ' : '') + i.title + ' ' + (i.snippet || '') + ' ' + (i.author || '')).toLowerCase().includes(q);
+    });
   }
-  arr.sort((a, b) => b.date - a.date);
+  const d = new Map(arr.map((i) => [i.id, unitDate(i)]));
+  arr.sort((a, b) => d.get(b.id) - d.get(a.id));
   for (const i of arr) keep.add(i.id);
   return arr;
 }
@@ -425,12 +545,14 @@ function select(sel) {
 
 /* ---------- read state ---------- */
 function setRead(it, read, auto) {
-  if (!it || it.read === read) return;
+  if (!it || unitRead(it) === read) return;
   if (auto && it.keepUnread) return;
-  it.read = read;
-  if (!read && !auto) it.keepUnread = true;
-  if (read && !auto) it.keepUnread = false;
-  touch(it);
+  for (const m of membersOf(it)) {
+    m.read = read;
+    if (!read && !auto) m.keepUnread = true;
+    if (read && !auto) m.keepUnread = false;
+    touch(m);
+  }
   updateItemEl(it);
   renderNav();
   setTitle();
@@ -444,7 +566,7 @@ function toggleStar(it) {
 }
 let undoIds = null;
 function markAllRead() {
-  const ids = vis.filter((i) => !i.read).map((i) => i.id);
+  const ids = vis.filter((i) => !unitRead(i)).flatMap((i) => membersOf(i).filter((m) => !m.read).map((m) => m.id));
   if (!ids.length) return toast('Nothing unread here');
   ids.forEach((id) => { const it = items.get(id); it.read = true; it.keepUnread = false; touch(it); });
   undoIds = ids;
@@ -487,10 +609,23 @@ function renderNav() {
   const subs = state.subs;
   const sel = state.ui.sel;
   const perFeed = {};
+  const perFolder = {};
   let total = 0, starred = 0;
+  const byId = subById();
+  // counts are cards: a story counts once in each feed and folder it has a source in
+  const units = new Map();
   for (const it of items.values()) {
     if (it.starred) starred++;
-    if (!it.read && subById()[it.feed]) { perFeed[it.feed] = (perFeed[it.feed] || 0) + 1; total++; }
+    if (it.read || !byId[it.feed]) continue;
+    const u = unitOf(it);
+    if (!units.has(u.id)) units.set(u.id, { feeds: new Set(), folders: new Set() });
+    units.get(u.id).feeds.add(it.feed);
+    units.get(u.id).folders.add(byId[it.feed].folder);
+  }
+  for (const u of units.values()) {
+    total++;
+    for (const f of u.feeds) perFeed[f] = (perFeed[f] || 0) + 1;
+    for (const f of u.folders) perFolder[f] = (perFolder[f] || 0) + 1;
   }
   const feedRow = (s) => {
     const n = perFeed[s.id] || 0;
@@ -505,7 +640,7 @@ function renderNav() {
     <div class="navh">Subscriptions</div>`;
   for (const f of folders()) {
     const inF = subs.filter((s) => s.folder === f);
-    const n = inF.reduce((a, s) => a + (perFeed[s.id] || 0), 0);
+    const n = perFolder[f] || 0;
     const col = !!state.ui.collapsed[f];
     h += `<div class="nv ${n ? 'unread' : ''} ${sel === 'folder:' + f ? 'on' : ''}" data-sel="folder:${esc(f)}">
       <span class="tw" data-fold="${esc(f)}">${col ? '▶' : '▼'}</span><span class="nm">${esc(f)}</span>${n ? `<span class="ct">${n}</span>` : ''}
@@ -522,9 +657,8 @@ function renderNav() {
 }
 
 function setTitle() {
-  let n = 0;
   const subs = subById();
-  for (const it of items.values()) if (!it.read && subs[it.feed]) n++;
+  const n = unread((it) => subs[it.feed]);
   document.title = (n ? `(${n}) ` : '') + 'BrainFodder';
 }
 
@@ -540,7 +674,7 @@ const fullDate = (ms) => new Date(ms).toLocaleString([], { weekday: 'short', mon
 function renderBar() {
   const lab = selLabel(state.ui.sel);
   const isStar = state.ui.sel === 'starred';
-  const n = vis.filter((i) => !i.read).length;
+  const n = vis.filter((i) => !unitRead(i)).length;
   $('#bar').innerHTML = `
     <h1>${lab.link ? `<a href="${esc(lab.link)}" target="_blank" rel="noopener">${esc(lab.title)} ↗</a>` : esc(lab.title)}</h1>
     ${isStar ? '' : `<div class="seg"><button data-show="new" class="${state.ui.showAll ? '' : 'on'}">${n} new</button><button data-show="all" class="${state.ui.showAll ? 'on' : ''}">All items</button></div>
@@ -551,7 +685,44 @@ function renderBar() {
     ${lab.sub && errors[lab.sub.id] ? `<span class="note" style="color:var(--err)">Couldn't load: ${esc(errors[lab.sub.id])}</span>` : ''}`;
 }
 
+// one card for the same news from several sources: Haiku's headline and summary,
+// the source that adds most beyond it, then every source
+function storyHTML(it, st) {
+  const subs = subById();
+  const mem = membersOf(it).sort((a, b) => b.date - a.date);
+  const date = unitDate(it);
+  const lead = subs[it.feed] || { title: 'Unsubscribed', url: it.link };
+  const n = mem.length;
+  return `<article class="item story ${unitRead(it) ? 'read' : ''} ${it.id === curId ? 'cur' : ''} ${it.id === openId ? 'open' : ''}" data-id="${esc(it.id)}">
+    <div class="row">
+      <button class="star ${it.starred ? 'on' : ''}" data-act="star">${it.starred ? '★' : '☆'}</button>
+      <span class="src">${n} sources</span>
+      <span class="ttl"><b>${esc(st.headline)}</b> <span class="snip">- ${esc(st.summary)}</span></span>
+      <span class="dt">${fmtDate(date)}</span>
+    </div>
+    <div class="full">
+      <div class="meta"><span class="nsrc">${n} sources</span><span>·</span><time>${fullDate(date)}</time></div>
+      <h2><a href="${esc(it.link)}" target="_blank" rel="noopener">${esc(st.headline)}</a></h2>
+      <div class="body" data-done="1"><p>${esc(st.summary)}</p></div>
+      <p class="readmore"><img src="${favicon(lead)}" alt=""> Read more in <a href="${esc(it.link)}" target="_blank" rel="noopener">${esc(lead.title)}</a>: ${esc(st.why)}</p>
+      <ul class="srcs">${mem.map((m) => {
+        const s = subs[m.feed] || { title: 'Unsubscribed', url: m.link };
+        return `<li><img src="${favicon(s)}" alt=""><span class="sn">${esc(s.title)}</span><a href="${esc(m.link)}" target="_blank" rel="noopener">${esc(m.title)}</a></li>`;
+      }).join('')}</ul>
+      <div class="actions">
+        <button data-act="star" class="${it.starred ? 'on-star' : ''}">${it.starred ? '★ Starred' : '☆ Add star'}</button>
+        <button data-act="share">Share</button>
+        <button data-act="email">Email</button>
+        <label><input type="checkbox" data-act="keep" ${it.keepUnread ? 'checked' : ''}> Keep unread</label>
+        <a href="${esc(it.link)}" target="_blank" rel="noopener">Open ${esc(lead.title)} ↗</a>
+      </div>
+    </div>
+  </article>`;
+}
+
 function itemHTML(it) {
+  const st = storyOf(it);
+  if (st) return storyHTML(it, st);
   const s = subById()[it.feed] || { title: 'Unsubscribed', url: it.link };
   return `<article class="item ${it.read ? 'read' : ''} ${it.id === curId ? 'cur' : ''} ${it.id === openId ? 'open' : ''}" data-id="${esc(it.id)}">
     <div class="row">
@@ -634,10 +805,10 @@ function renderMore(count = PAGE) {
     if (!vis.length) {
       d.innerHTML = query ? 'Nothing matches that search.'
         : state.ui.sel === 'starred' ? 'No starred items yet. Press s on anything worth keeping.'
-        : refreshing ? 'Loading feeds…'
-        : `No new items here. <button data-show="all">Show all items</button>`;
+        : refreshing ? 'Fetching…'
+        : `No new items here. <button id="endFetch">Fetch</button> · <button data-show="all">Show all items</button>`;
     } else {
-      d.innerHTML = `That's everything. ${vis.some((i) => !i.read) ? '<button id="endMark">Mark all as read</button> · ' : ''}<button id="endNext">Next subscription with new items</button>`;
+      d.innerHTML = `That's everything. ${vis.some((i) => !unitRead(i)) ? '<button id="endMark">Mark all as read</button> · ' : ''}<button id="endNext">Next subscription with new items</button>`;
     }
     box.appendChild(d);
   }
@@ -648,14 +819,14 @@ function elFor(id) { return $('#items').querySelector(`[data-id="${CSS.escape(id
 function updateItemEl(it) {
   const el = elFor(it.id);
   if (!el) return;
-  el.classList.toggle('read', it.read);
+  el.classList.toggle('read', unitRead(it));
   for (const b of el.querySelectorAll('[data-act="star"]')) {
     if (b.classList.contains('star')) { b.classList.toggle('on', it.starred); b.textContent = it.starred ? '★' : '☆'; }
     else { b.classList.toggle('on-star', it.starred); b.textContent = it.starred ? '★ Starred' : '☆ Add star'; }
   }
   const k = el.querySelector('[data-act="keep"]');
   if (k) k.checked = !!it.keepUnread;
-  const n = vis.filter((i) => !i.read).length;
+  const n = vis.filter((i) => !unitRead(i)).length;
   const seg = $('#bar [data-show="new"]');
   if (seg) seg.textContent = n + ' new';
 }
@@ -741,6 +912,7 @@ $('#scroll').addEventListener('scroll', () => {
 $('#items').addEventListener('click', (e) => {
   const art = e.target.closest('.item');
   if (e.target.closest('#endMark')) return markAllRead();
+  if (e.target.closest('#endFetch')) return refreshAll();
   if (e.target.closest('#endNext')) return nextSub(1, true);
   if (e.target.closest('[data-show="all"]')) { state.ui.showAll = true; save(); return renderItems(); }
   if (!art) return;
@@ -750,7 +922,7 @@ $('#items').addEventListener('click', (e) => {
   if (act === 'play') return playFrom(it);
   if (act === 'share') return share(it);
   if (act === 'email') return email(it);
-  if (act === 'keep') { const on = e.target.checked; it.keepUnread = on; it.read = !on; touch(it); updateItemEl(it); renderNav(); return; }
+  if (act === 'keep') { const on = e.target.checked; for (const m of membersOf(it)) { m.keepUnread = on; m.read = !on; touch(m); } updateItemEl(it); renderNav(); return; }
   if (e.target.closest('.row')) {
     if (openId === it.id) { art.classList.remove('open'); openId = null; setCur(it.id); }
     else setCur(it.id, { scroll: true, open: true });
@@ -786,7 +958,7 @@ $('#nav').addEventListener('click', (e) => {
   if (nv) select(nv.dataset.sel);
 });
 
-$('#refreshBtn').onclick = () => { toast('Refreshing…'); refreshAll(); };
+$('#refreshBtn').onclick = () => refreshAll();
 $('#helpBtn').onclick = () => helpModal();
 $('#settingsBtn').onclick = () => settingsModal();
 let qT;
@@ -969,7 +1141,7 @@ function helpModal() {
     ['g then a', 'Go to all items'],
     ['g then s', 'Go to starred items'],
     ['y', 'Play your new Shorts, newest first; the next starts when one ends'],
-    ['r', 'Refresh all feeds'],
+    ['r', 'Fetch new items; the same news from several sources becomes one story (owner’s Mac only)'],
     ['a', 'Add a subscription'],
     ['/', 'Search'],
     ['Esc', 'Close a window or leave search'],
@@ -1115,7 +1287,7 @@ document.addEventListener('keydown', (e) => {
     v: () => openOriginal(it), S: () => share(it), e: () => email(it),
     A: markAllRead, J: () => nextSub(1, false), K: () => nextSub(-1, false),
     1: () => setView('expanded'), 2: () => setView('list'),
-    r: () => { toast('Refreshing…'); refreshAll(); }, a: addModal, y: openShorts,
+    r: refreshAll, a: addModal, y: openShorts,
     '/': () => $('#search').focus(), '?': helpModal,
     g: () => { gPending = Date.now(); },
   };
@@ -1129,15 +1301,18 @@ document.addEventListener('keydown', (e) => {
 
 /* ---------- start ---------- */
 (async function start() {
-  try { db = await openDB(); (await idbAll()).forEach((i) => items.set(i.id, i)); }
+  try {
+    db = await openDB();
+    (await idbAll()).forEach((i) => items.set(i.id, i));
+    (await idbAll('stories')).forEach((s) => stories.set(s.id, s));
+  }
   catch (e) { console.warn('IndexedDB unavailable, items will not persist', e); }
   folders();
   if (state.ui.sel.startsWith('feed:') && !subById()[state.ui.sel.slice(5)]) state.ui.sel = 'all';
   save();
   renderNav();
   renderItems();
-  await refreshAll();
-  setInterval(refreshAll, 30 * 60 * 1000);
+  // nothing fetches on its own: only the Fetch button (r), on the owner's Mac
 })();
 </script>
 </body>
