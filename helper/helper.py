@@ -343,6 +343,11 @@ PAYWALLED = ('nytimes.com', 'theathletic.com', 'wsj.com', 'ft.com', 'bloomberg.c
              'telegraph.co.uk', 'economist.com', 'washingtonpost.com', 'businessinsider.com', 'barrons.com',
              'newyorker.com', 'theinformation.com', 'latimes.com', 'bostonglobe.com', 'theaustralian.com.au',
              'spectator.co.uk', 'foreignaffairs.com', 'hbr.org', 'stratechery.com', 'puck.news', 'seekingalpha.com')
+# the same publishers as Google News names them, to clear older Google items whose titles end " - <name>"
+PAYWALLED_NAMES = ['The New York Times', 'The Athletic', 'The Wall Street Journal', 'WSJ', 'Financial Times', 'Bloomberg',
+                   'Bloomberg.com', 'The Times', 'The Telegraph', 'The Economist', 'The Washington Post', 'Business Insider',
+                   "Barron's", 'The New Yorker', 'The Information', 'Los Angeles Times', 'The Boston Globe', 'The Australian',
+                   'The Spectator', 'Foreign Affairs', 'Harvard Business Review', 'Stratechery', 'Puck', 'Seeking Alpha']
 WALL_RE = re.compile(r'subscribe (now )?to (continue|read|keep reading|unlock)|subscribers? only|for (paid )?subscribers only|'
                      r'this (article|story|post) is for (paid )?subscribers|already a subscriber\?|sign in to (continue|keep) reading|'
                      r'log in to (continue|keep) reading|unlock (this|the full) (article|story)', re.I)
@@ -389,19 +394,23 @@ def extract(link):
     if not best or pwords(best) < 150:
         m = re.search(r'<body\b.*?</body>', page, re.S | re.I)
         best = m.group(0) if m else page
+    whole = not cands or best not in cands   # no real article container: the whole page
     body = best
     body = re.sub(r'<(script|style|noscript|svg|nav|header|footer|aside|form|iframe|button|template)\b.*?</\1>', ' ', body, flags=re.S | re.I)
     out, seen, words, imgs = [], set(), 0, 0
     for m in re.finditer(r'<(p|h2|h3|h4|blockquote|li|figcaption|pre)\b[^>]*>(.*?)</\1>|<img\b[^>]*>', body, re.S | re.I):
         if m.group(1):
             tag, inner = m.group(1).lower(), m.group(2)
+            if whole and tag not in ('p', 'blockquote', 'pre'):
+                continue   # outside a real article container, lists and headings are menus
             text = plain(inner)
             least = 3 if tag[0] == 'h' else 15 if tag in ('li', 'figcaption') else 25
             if len(text) < least or text in seen or (len(text) < 220 and BOILER_RE.search(text)):
                 continue
             seen.add(text)
             out.append('<%s>%s</%s>' % (tag, inline(inner, final), tag))
-            words += len(text.split())
+            if tag in ('p', 'blockquote', 'pre'):
+                words += len(text.split())   # only running text counts towards a real article
             if words > 8000:
                 break
         elif imgs < 6:
@@ -471,6 +480,8 @@ def run(job, emit):
             emit({'type': 'feed', 'id': s['id'], 'data': data})
     if dropped:
         emit({'type': 'dropped', 'ids': dropped})
+    if DROP_PAYWALLED:
+        emit({'type': 'paywalledNames', 'names': PAYWALLED_NAMES})
     log('fetched', len(fetched), 'of', len(subs), 'feeds in %.1fs; %d paywalled items dropped' % (time.time() - t0, len(dropped)))
 
     # items that arrive as a headline or a few lines get their full article, so they read in place

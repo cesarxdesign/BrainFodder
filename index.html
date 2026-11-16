@@ -459,6 +459,14 @@ async function refreshAll() {
         if (m.type === 'feed' && sub) { ingest(sub, m.data); delete errors[sub.id]; loading.delete(sub.id); nav(); }
         else if (m.type === 'feedError' && sub) { errors[sub.id] = m.error; loading.delete(sub.id); nav(); }
         else if (m.type === 'article') showFull(m.id, m.html);
+        else if (m.type === 'paywalledNames') {
+          // older Google News items from paywalled publishers: their titles end " - Publisher"
+          for (const it of [...items.values()]) {
+            if (it.starred || !/news\.google\.com/.test(it.link || '')) continue;
+            if (m.names.some((n) => it.title.endsWith(' - ' + n))) { drop(it.id); elFor(it.id)?.remove(); }
+          }
+          nav();
+        }
         else if (m.type === 'dropped') { for (const id of m.ids) { const it = items.get(id); if (it && !it.starred) { drop(id); elFor(id)?.remove(); } } nav(); }
         else if (m.type === 'progress') setFetchLabel(m.text.length > 46 ? m.text.slice(0, 44) + '…' : m.text);
         else if (m.type === 'done') {
@@ -1380,6 +1388,11 @@ document.addEventListener('keydown', (e) => {
     (await idbAll('stories')).forEach((s) => stories.set(s.id, s));
   }
   catch (e) { console.warn('IndexedDB unavailable, items will not persist', e); }
+  // full articles read before menus were filtered out get read again on the next Fetch
+  if ((state.fullRev || 1) < 2) {
+    for (const it of items.values()) if (it.full) { it.full = false; it.tried = false; touch(it); }
+    state.fullRev = 2;
+  }
   folders();
   if (state.ui.sel.startsWith('feed:') && !subById()[state.ui.sel.slice(5)]) state.ui.sel = 'all';
   save();
