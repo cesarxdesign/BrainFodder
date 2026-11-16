@@ -189,8 +189,7 @@ main{display:flex;flex-direction:column;min-width:0;min-height:0}
 const LS = 'brainfodder.v1';
 const DEFAULT_FOLDERS = ['Tennis', 'Tech', 'Misc'];
 const DEFAULT_SUBS = [
-  ['Tennis', 'ATP Tour', 'https://news.google.com/rss/search?q=site:atptour.com&hl=en-GB&gl=GB&ceid=GB:en'],
-  ['Tennis', 'WTA', 'https://news.google.com/rss/search?q=site:wtatennis.com&hl=en-GB&gl=GB&ceid=GB:en'],
+  ['Tennis', 'Ubitennis', 'https://www.ubitennis.net/feed/'],
   ['Tennis', 'BBC Sport: Tennis', 'https://feeds.bbci.co.uk/sport/tennis/rss.xml'],
   ['Tennis', 'The Guardian: Tennis', 'https://www.theguardian.com/sport/tennis/rss'],
   ['Tennis', 'Tennis365', 'https://www.tennis365.com/feed'],
@@ -267,11 +266,23 @@ function loadState() {
         const to = direct[sub.feedUrl] || direct[sub.url];
         if (to) { sub.url = to; sub.feedUrl = to; sub.siteUrl = to; }
       }
+      // ATP and WTA have no feed of their own; their Google News searches returned site pages
+      // (draws, head-to-heads, profiles), so Cesar swapped them for Ubitennis
+      if (!s.ubitennis) {
+        const gone = ['https://news.google.com/rss/search?q=site:atptour.com&hl=en-GB&gl=GB&ceid=GB:en', 'https://news.google.com/rss/search?q=site:wtatennis.com&hl=en-GB&gl=GB&ceid=GB:en'];
+        const at = s.subs.findIndex((x) => gone.includes(x.feedUrl || x.url));
+        s.subs = s.subs.filter((x) => !gone.includes(x.feedUrl || x.url));
+        if (!s.subs.some((x) => /ubitennis\.net/.test(x.feedUrl || x.url || ''))) {
+          s.subs.splice(Math.max(at, 0), 0, { id: uid(), title: 'Ubitennis', url: 'https://www.ubitennis.net/feed/', feedUrl: null, siteUrl: 'https://www.ubitennis.net/feed/', folder: 'Tennis' });
+        }
+        s.ubitennis = true;
+      }
       return s;
     }
   } catch (_) {}
   return {
     folders: [...DEFAULT_FOLDERS],
+    ubitennis: true,
     subs: DEFAULT_SUBS.map(([folder, title, url]) => ({ id: uid(), title, url, feedUrl: null, siteUrl: url, folder })),
     ui: { sel: 'all', view: 'expanded', sort: 'oldest', oldestDefault: true, showAll: false, collapsed: {} },
   };

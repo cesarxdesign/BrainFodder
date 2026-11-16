@@ -72,3 +72,4 @@
 - Sort switch in the top bar (Cesar's ask): Newest first (as before) or Oldest first; one setting for every feed and folder, remembered in the browser. The backlog's "oldest-first per feed" item is done by it
 - Old pages that Google News searches keep returning (e.g. 2019 WTA player profiles) arrive unread on later Fetches and sit on top with Oldest first; Cesar's call: leave them
 - Oldest first is the default (Cesar's call); existing installs switched over once, and the switch shows Oldest first on the left
+- ATP Tour and WTA removed, Ubitennis added in their place (Cesar's call): neither site has a feed of its own, and their Google News searches returned site pages (draws, head-to-heads, Stats Centre pages, player profiles, schedules) mixed with news; limiting the search to news addresses or to recent days didn't stop it. Existing installs switch over by themselves; the pages go with the two subscriptions
