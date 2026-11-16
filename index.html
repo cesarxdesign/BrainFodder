@@ -287,7 +287,14 @@ function openDB() {
       if (!d.objectStoreNames.contains('items')) d.createObjectStore('items', { keyPath: 'id' });
       if (!d.objectStoreNames.contains('stories')) d.createObjectStore('stories', { keyPath: 'id' });
     };
-    r.onsuccess = () => res(r.result);
+    // an older BrainFodder tab still holds the old version; the update waits until it closes
+    r.onblocked = () => toast('Close your other BrainFodder tabs to finish updating');
+    r.onsuccess = () => {
+      const d = r.result;
+      // let a newer version of this page upgrade the database: step aside and reload
+      d.onversionchange = () => { d.close(); location.reload(); };
+      res(d);
+    };
     r.onerror = () => rej(r.error);
   });
 }
