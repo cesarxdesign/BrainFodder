@@ -347,6 +347,7 @@ WALL_RE = re.compile(r'subscribe (now )?to (continue|read|keep reading|unlock)|s
                      r'this (article|story|post) is for (paid )?subscribers|already a subscriber\?|sign in to (continue|keep) reading|'
                      r'log in to (continue|keep) reading|unlock (this|the full) (article|story)', re.I)
 BOILER_RE = re.compile(r'cookie|newsletter|sign up|subscribe|advertis|all rights reserved|follow us|share this|read more:|related:', re.I)
+DROP_PAYWALLED = False     # off until Cesar agrees the publisher list and the page check
 EXPAND_DAYS = 7
 SHORT_CHARS = 600          # an item with less text than this gets its full article fetched
 ARTICLE_CACHE = {}         # link -> plain text, reused when writing stories
@@ -363,6 +364,8 @@ def paywalled_host(u):
 
 
 def item_paywalled(it):
+    if not DROP_PAYWALLED:
+        return False
     pub = (it.get('publisher') or {}).get('url')
     return paywalled_host(it.get('link')) or (pub and paywalled_host(pub))
 
@@ -408,7 +411,7 @@ def extract(link):
                 continue
             out.append('<p><img src="%s" alt=""></p>' % html.escape(absu(html.unescape(src), final), quote=True))
             imgs += 1
-    walled = words < 150 and bool(WALL_RE.search(page))
+    walled = DROP_PAYWALLED and words < 150 and bool(WALL_RE.search(page))
     if words >= 150:
         ARTICLE_CACHE[link] = ' '.join(plain(x) for x in out)
     return ('\n'.join(out) if words >= 150 else None), words, walled
