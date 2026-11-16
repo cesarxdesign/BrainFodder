@@ -40,3 +40,17 @@
   - Simon Willison, Maggie Appleton, Dan Luu and Craig Mod failed with "Entity expansion limit exceeded". The XML parser counts every &lt; and &amp; in a feed and stopped at 1000; long feeds with escaped HTML have more. The cap is now 2 million, with the guards against booby-trapped feeds (DOCTYPE entities) kept
 - Live check in Chrome: all 50 feeds load with unread counts, none flagged; j/k move through items; no console errors on load or in use. Shorts player: 18 new Shorts queued, the next one started by itself when one ended, j skipped, Esc closed. Not checked: whether Premium removes ads in the player
 - Live address: https://brainfodder.vercel.app (Vercel team cesarxdesign1, project brainfodder, deploys on every push to main)
+
+## 2026-11-16
+
+- Repeat news: two sources often report the same thing (the same score from yesterday). Cesar asked for a cheap model to group the same news from different sources into one entry, summarise it, and offer the one source that adds most beyond the summary as further reading
+- It must run on his Max plan, not a paid API, and only from his Mac: if anyone else opens the public link, they can't fetch or use his plan. His phone doesn't matter
+- His call: no automatic refresh. One Fetch button starts everything, and whatever runs quits as soon as the fetch is done, not after a timer
+- Built: helper/helper.py. macOS holds port 47823 on 127.0.0.1 and starts the helper when the page connects; it answers only brainfodder.vercel.app (and Pages and localhost), and quits after every request except the browser's pre-check. The helper fetches all feeds itself (a Python port of api/feed.js; item ids checked identical) and streams them to the page
+- Grouping: Claude Haiku 5.5 through Claude Code (`claude -p --model haiku`, no tools, own system prompt, no project files), so it uses the Max plan. Step 1 sorts the last 48 hours of news (videos excluded) into stories: same event only, not same topic. Step 2, per story with 2+ sources: the helper reads the articles (Google News links only give headlines), Haiku writes a headline, 2 to 3 sentence summary, picks the source that adds most and says what it adds
+- First test run: 196 new items, 17 stories, 18 Haiku calls, about 108,000 tokens, 79 seconds. Later presses only send Haiku items it hasn't seen
+- Fixed after the test: with headline-only sources Haiku wrote "no details available" into summaries; the prompt now forbids mentioning what is missing
+- Fixed: a refused request (wrong website) left the helper running; it now quits after every request
+- Story card: one per story, read together, counted once in the sidebar
+- Lesson: the first version bumped the IndexedDB version to add a stories store; Chrome holds an upgrade until every open tab on the old version closes, so yesterday's open tab blocked the page. Stories now live in their own database, `brainfodder-stories`; the items database is never upgraded
+- api/feed.js on Vercel is no longer used by the page. Open: move the page to GitHub Pages and delete the Vercel project

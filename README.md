@@ -11,7 +11,8 @@ A Google Reader style RSS reader for the Mac browser. Started 2026-11-15.
 - Star to keep, Share (Mac share sheet, or copies the link), Email
 - Add any website or feed address; it finds the feed on its own. YouTube channel pages work too
 - OPML import and export in Settings
-- Feeds refresh on open, every 30 minutes, and on r
+- Nothing fetches on its own: the Fetch button (or r) fetches every feed and groups the same news from several sources into one story card (headline, short summary, the source that adds most, every source listed). It works only on Cesar's Mac; anywhere else the button does nothing
+- Shorts: y plays your unseen Shorts, newest first; the next starts by itself
 
 ## Data
 
@@ -23,11 +24,14 @@ A Google Reader style RSS reader for the Mac browser. Started 2026-11-15.
 ## Files
 
 - `index.html` the whole app (code)
-- `api/feed.js` Vercel function that fetches a feed server side (browsers can't, because of CORS), finds the feed on a website, and returns JSON (code)
-- `vercel.json` gives the function 30 seconds
+- `helper/helper.py` runs on Cesar's Mac only: fetches feeds (browsers can't, because of CORS) and groups repeated news with Claude Haiku through Claude Code on his Max plan (code)
+- `helper/com.cesarxdesign.brainfodder.plist` and `helper/install.sh` set macOS to start the helper when Fetch is pressed; it quits when that fetch is answered. Log: ~/Library/Logs/BrainFodder/helper.log
+- `api/feed.js`, `vercel.json` the old Vercel feed fetcher, no longer used by the page
 - `diary.md` every decision and fact about the project
 - `BACKLOG.md` what is next
 
 ## Hosting
 
-Vercel, deployed from GitHub `cesarxdesign/BrainFodder` (public). No build step.
+https://brainfodder.vercel.app, deployed from GitHub `cesarxdesign/BrainFodder` (public) on every push to main. No build step. Fetching happens on Cesar's Mac, not on Vercel.
+
+On a new Mac: run `helper/install.sh`, be signed in to Claude Code, and allow Chrome's "access other apps and services on this device" prompt on the first Fetch.
