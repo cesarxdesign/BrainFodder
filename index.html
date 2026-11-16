@@ -277,21 +277,16 @@ const subById = () => Object.fromEntries(state.subs.map((s) => [s.id, s]));
 const items = new Map();
 // stories: the same news from several sources, grouped by Haiku on the owner's Mac
 const stories = new Map();
-let db = null;
-function openDB() {
+let db = null, sdb = null;
+// Items live in database 'brainfodder' (never upgraded, so an open older tab can't block it);
+// stories live in their own database 'brainfodder-stories'.
+function openDB(name = 'brainfodder', store = 'items') {
   return new Promise((res, rej) => {
-    // v2 adds the stories store; items are untouched
-    const r = indexedDB.open('brainfodder', 2);
-    r.onupgradeneeded = () => {
-      const d = r.result;
-      if (!d.objectStoreNames.contains('items')) d.createObjectStore('items', { keyPath: 'id' });
-      if (!d.objectStoreNames.contains('stories')) d.createObjectStore('stories', { keyPath: 'id' });
-    };
-    // an older BrainFodder tab still holds the old version; the update waits until it closes
-    r.onblocked = () => toast('Close your other BrainFodder tabs to finish updating');
+    const r = indexedDB.open(name);
+    r.onupgradeneeded = () => { if (!r.result.objectStoreNames.contains(store)) r.result.createObjectStore(store, { keyPath: 'id' }); };
     r.onsuccess = () => {
       const d = r.result;
-      // let a newer version of this page upgrade the database: step aside and reload
+      // if a later version of this page ever upgrades the database, step aside and reload
       d.onversionchange = () => { d.close(); location.reload(); };
       res(d);
     };
@@ -300,7 +295,7 @@ function openDB() {
 }
 function idbAll(store = 'items') {
   return new Promise((res, rej) => {
-    const q = db.transaction(store).objectStore(store).getAll();
+    const q = (store === 'stories' ? sdb : db).transaction(store).objectStore(store).getAll();
     q.onsuccess = () => res(q.result);
     q.onerror = () => rej(q.error);
   });
@@ -317,13 +312,16 @@ function touchStory(s) { storyDirty.add(s.id); later(); }
 function dropStory(id) { stories.delete(id); storyGone.add(id); storyDirty.delete(id); later(); }
 function flush() {
   if (!db || (!dirty.size && !gone.size && !storyDirty.size && !storyGone.size)) return;
-  const tx = db.transaction(['items', 'stories'], 'readwrite');
-  const st = tx.objectStore('items');
-  for (const id of dirty) { const it = items.get(id); if (it) st.put(it); }
-  for (const id of gone) st.delete(id);
-  const ss = tx.objectStore('stories');
-  for (const id of storyDirty) { const s = stories.get(id); if (s) ss.put(s); }
-  for (const id of storyGone) ss.delete(id);
+  if (dirty.size || gone.size) {
+    const st = db.transaction('items', 'readwrite').objectStore('items');
+    for (const id of dirty) { const it = items.get(id); if (it) st.put(it); }
+    for (const id of gone) st.delete(id);
+  }
+  if (sdb && (storyDirty.size || storyGone.size)) {
+    const ss = sdb.transaction('stories', 'readwrite').objectStore('stories');
+    for (const id of storyDirty) { const s = stories.get(id); if (s) ss.put(s); }
+    for (const id of storyGone) ss.delete(id);
+  }
   dirty.clear(); gone.clear(); storyDirty.clear(); storyGone.clear();
 }
 
@@ -1310,6 +1308,7 @@ document.addEventListener('keydown', (e) => {
 (async function start() {
   try {
     db = await openDB();
+    sdb = await openDB('brainfodder-stories', 'stories');
     (await idbAll()).forEach((i) => items.set(i.id, i));
     (await idbAll('stories')).forEach((s) => stories.set(s.id, s));
   }
