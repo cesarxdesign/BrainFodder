@@ -74,3 +74,5 @@
 - Oldest first is the default (Cesar's call); existing installs switched over once, and the switch shows Oldest first on the left
 - ATP Tour and WTA removed, Ubitennis added in their place (Cesar's call): neither site has a feed of its own, and their Google News searches returned site pages (draws, head-to-heads, Stats Centre pages, player profiles, schedules) mixed with news; limiting the search to news addresses or to recent days didn't stop it. Existing installs switch over by themselves; the pages go with the two subscriptions
 - Every page load or reload now runs one Fetch, the same as pressing the button (Cesar's call, 2026-11-16). Still no timer: the helper starts with that request and quits when it's done. Away from his Mac the load-time fetch fails quietly; the button still says why
+- Load-time fetch tested live: one load = one run (2 new items, 2,576 tokens). A first test made 3 runs in a row because my test script hung the tab, not because of the page
+- Dan Luu's feed is 6.6 MB (every essay in full) and downloads slowly, so since 17:30 on 2026-11-16 it has held each Fetch for 17-205 s and often times out; open question for Cesar
